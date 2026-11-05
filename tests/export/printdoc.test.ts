@@ -16,6 +16,11 @@ const clip = (over: Partial<Clip> = {}): Clip => ({
 });
 
 describe('prepareHtml', () => {
+  it('renders extractor math markers as $…$ code', () => {
+    const out = prepareHtml('<p>x <span class="tn-math" data-tn-math="inline" data-tex="a^2">a^2</span></p><span class="tn-math" data-tn-math="display" data-tex="c=1">c=1</span>', 0);
+    expect(out).toContain('<code class="tn-math">$a^2$</code>');
+    expect(out).toContain('<code class="tn-math">$$c=1$$</code>');
+  });
   it('sanitizes scripts, handlers and javascript: links', () => {
     const out = prepareHtml('<p onclick="x()">a</p><script>alert(1)</script><a href="javascript:alert(1)">l</a>', 0);
     expect(out).not.toMatch(/script|onclick|javascript:/i);

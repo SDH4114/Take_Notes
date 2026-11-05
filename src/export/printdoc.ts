@@ -1,6 +1,7 @@
 // Print documents: model + HTML builder used by entrypoints/print. Page HTML is sanitized with DOMPurify.
 import DOMPurify from 'dompurify';
 import { formatBibliography } from '@/src/cite';
+import { MATH_ATTR, MATH_TEX_ATTR } from '@/src/markdown';
 import { uiLang, type Lang } from '@/src/core/i18n';
 import type { Book, Clip, Highlight, Project, SourceMeta } from '@/src/core/types';
 import { normalizeUrl } from '@/src/core/util';
@@ -37,6 +38,14 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 /** Replace TeX-annotated math (KaTeX/MathML) by monospace `$…$` text — no math renderer is bundled. */
 function mathToText(root: ParentNode): void {
+  // Marker spans produced by src/extract/math.ts (data-tn-math="inline|display", data-tex="…").
+  for (const span of Array.from(root.querySelectorAll(`span[${MATH_ATTR}]`))) {
+    const code = span.ownerDocument.createElement('code');
+    code.className = 'tn-math';
+    const tex = span.getAttribute(MATH_TEX_ATTR) ?? span.textContent ?? '';
+    code.textContent = span.getAttribute(MATH_ATTR) === 'display' ? `$$${tex}$$` : `$${tex}$`;
+    span.replaceWith(code);
+  }
   for (const ann of Array.from(root.querySelectorAll('annotation[encoding="application/x-tex"]'))) {
     let el: Element = ann.closest('math') ?? ann;
     const display = el.getAttribute('display') === 'block' || !!el.closest('.katex-display');
