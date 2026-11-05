@@ -1,0 +1,43 @@
+import { translator, type Dict } from '@/src/core/i18n';
+
+const dict = {
+  ru: {
+    menuSelection: 'Сохранить выделение в TakeNotes',
+    menuPage: 'Сохранить страницу в TakeNotes',
+    inbox: 'Входящие',
+    project: 'Проект',
+    savePage: 'Сохранить страницу',
+    saveSelection: 'Сохранить выделение',
+    exportMd: 'Экспорт страницы в .md',
+    exportPdf: 'Экспорт страницы в PDF',
+    crawl: 'Скачать раздел документации',
+    sidebar: 'Открыть боковую панель',
+    youtube: 'Сохранить субтитры YouTube',
+    saved: 'Сохранено: {title}',
+    exported: 'Экспортировано: {title}',
+    noSelection: 'Нет выделенного текста',
+    working: 'Подождите…',
+    error: 'Ошибка: {message}',
+  },
+  en: {
+    menuSelection: 'Save selection to TakeNotes',
+    menuPage: 'Save page to TakeNotes',
+    inbox: 'Inbox',
+    project: 'Project',
+    savePage: 'Save page',
+    saveSelection: 'Save selection',
+    exportMd: 'Export page as .md',
+    exportPdf: 'Export page as PDF',
+    crawl: 'Download documentation section',
+    sidebar: 'Open sidebar',
+    youtube: 'Save YouTube transcript',
+    saved: 'Saved: {title}',
+    exported: 'Exported: {title}',
+    noSelection: 'No text selected',
+    working: 'Working…',
+    error: 'Error: {message}',
+  },
+} satisfies Dict<string>;
+
+export type ExtractStringKey = keyof (typeof dict)['en'];
+export const t = translator<ExtractStringKey>(dict);
