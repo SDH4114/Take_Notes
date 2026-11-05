@@ -18,7 +18,15 @@ function css(): string {
     yellow: '250,204,21', green: '74,222,128', blue: '96,165,250', pink: '244,114,182', purple: '167,139,250',
   };
   const rules = COLORS.map((c) => `mark.tn-hl-${c}{background-color:rgba(${rgb[c]},.4)!important;box-shadow:0 0 0 1px rgba(${rgb[c]},.25)}`);
-  return `mark.tn-hl{color:inherit!important;cursor:pointer;border-radius:2px;padding:0;margin:0}\n${rules.join('\n')}`;
+  // Flash: a vivid ring + brighter background; box-shadow/outline only, so text never shifts.
+  const flash = [
+    '@keyframes tn-hl-pulse{0%{box-shadow:0 0 0 0 rgba(255,120,0,.95),0 0 0 0 rgba(255,120,0,.6)}'
+      + '35%{box-shadow:0 0 0 3px rgba(255,120,0,1),0 0 16px 6px rgba(255,120,0,.75)}'
+      + '100%{box-shadow:0 0 0 0 rgba(255,120,0,0),0 0 0 0 rgba(255,120,0,0)}}',
+    `mark.tn-hl.tn-hl-flash{background-color:rgba(255,190,0,.9)!important;outline:2px solid rgba(255,120,0,.9);`
+      + `outline-offset:1px;animation:tn-hl-pulse .8s ease-out 1}`,
+  ];
+  return `mark.tn-hl{color:inherit!important;cursor:pointer;border-radius:2px;padding:0;margin:0}\n${rules.join('\n')}\n${flash.join('\n')}`;
 }
 
 function ensureStyle(doc: Document): void {
@@ -77,7 +85,7 @@ export function renderHighlight(
   return wrapRange(range, h.id, h.color).length > 0;
 }
 
-const marksOf = (id: string): HTMLElement[] =>
+export const marksOf = (id: string): HTMLElement[] =>
   [...document.querySelectorAll<HTMLElement>('mark.tn-hl[data-tn-id]')].filter((m) => m.dataset.tnId === id);
 
 function unwrap(mark: HTMLElement): void {
@@ -90,6 +98,21 @@ function unwrap(mark: HTMLElement): void {
 
 export function removeHighlight(id: string): void {
   marksOf(id).forEach(unwrap);
+}
+
+const flashTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Add the pulse class to every mark of a highlight for `ms`, then return to normal. */
+export function flashHighlight(id: string, ms: number): void {
+  const marks = marksOf(id);
+  clearTimeout(flashTimers.get(id));
+  marks.forEach((m) => m.classList.remove('tn-hl-flash'));
+  if (marks[0]) void marks[0].offsetWidth; // reflow so a repeated flash restarts the animation
+  marks.forEach((m) => m.classList.add('tn-hl-flash'));
+  flashTimers.set(id, setTimeout(() => {
+    flashTimers.delete(id);
+    marksOf(id).forEach((m) => m.classList.remove('tn-hl-flash'));
+  }, ms));
 }
 
 export function recolorHighlight(id: string, color: HighlightColor): void {

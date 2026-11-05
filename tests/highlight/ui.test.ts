@@ -85,6 +85,32 @@ describe('openPopover', () => {
   });
 });
 
+describe('popover icon buttons', () => {
+  beforeEach(() => html('<p>a <mark class="tn-hl" data-tn-id="h1">quoted</mark> b</p>'));
+  afterEach(() => document.querySelectorAll('#tn-popover-host').forEach((e) => e.remove()));
+
+  it('copy and delete are icon buttons (inline svg) with accessible labels; copy confirms via its title', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    openPopover({
+      mark: document.querySelector('mark') as HTMLElement, color: 'blue', note: '', text: 'q',
+      onColor: vi.fn(), onNote: vi.fn(), onDelete: vi.fn(),
+    });
+    const root = shadowOf('#tn-popover-host');
+    const copy = root.querySelector('button.copy') as HTMLElement;
+    const del = root.querySelector('button.del') as HTMLElement;
+    expect(copy.querySelector('svg')).not.toBeNull();
+    expect(del.querySelector('svg')).not.toBeNull();
+    expect(copy.getAttribute('aria-label')).toBeTruthy();
+    expect(del.getAttribute('aria-label')).toBeTruthy();
+    const before = copy.title;
+    copy.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(copy.title).not.toBe(before);
+  });
+});
+
 describe('createSelectionToolbar', () => {
   let toolbar: ReturnType<typeof createSelectionToolbar>;
   const onPick = vi.fn();

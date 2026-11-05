@@ -7,6 +7,98 @@ import { normalizeUrl, nowIso } from '@/src/core/util';
 import { t } from './strings';
 
 const MENU_SELECTION = 'tn-hl-selection';
+const LOAD_TIMEOUT_MS = 20000;
+const SEND_ATTEMPTS = 3;
+const SEND_RETRY_MS = 500;
+
+export interface TabsFacade {
+  query(): Promise<Array<{ id?: number; url?: string; windowId?: number }>>;
+  /** Make the tab active and focus its window. */
+  activate(tab: { id: number; windowId?: number }): Promise<void>;
+  create(url: string): Promise<{ id: number }>;
+  /** Resolves when the tab finished loading; rejects on timeout or when the tab is closed. */
+  waitComplete(tabId: number, timeoutMs: number): Promise<void>;
+}
+
+export interface OpenDeps {
+  getHighlight: (id: string) => Promise<Highlight | undefined>;
+  tabs: TabsFacade;
+  sleep: (ms: number) => Promise<void>;
+  sendToTab: typeof sendToTab;
+}
+
+const browserTabs: TabsFacade = {
+  query: () => browser.tabs.query({}),
+  async activate({ id, windowId }) {
+    await browser.tabs.update(id, { active: true });
+    if (windowId != null) await browser.windows.update(windowId, { focused: true });
+  },
+  async create(url) {
+    const tab = await browser.tabs.create({ url, active: true });
+    if (tab.id == null) throw new Error('Tab was not created');
+    return { id: tab.id };
+  },
+  waitComplete: (tabId, timeoutMs) =>
+    new Promise<void>((resolve, reject) => {
+      const done = (err?: Error) => {
+        clearTimeout(timer);
+        browser.tabs.onUpdated.removeListener(onUpdated);
+        browser.tabs.onRemoved.removeListener(onRemoved);
+        if (err) reject(err); else resolve();
+      };
+      const onUpdated = (id: number, info: { status?: string }) => {
+        if (id === tabId && info.status === 'complete') done();
+      };
+      const onRemoved = (id: number) => { if (id === tabId) done(new Error('Tab was closed')); };
+      const timer = setTimeout(() => done(new Error('Page load timed out')), timeoutMs);
+      browser.tabs.onUpdated.addListener(onUpdated);
+      browser.tabs.onRemoved.addListener(onRemoved);
+      // The tab may have finished before the listener was attached.
+      browser.tabs.get(tabId).then((tab) => { if (tab.status === 'complete') done(); }, () => {});
+    }),
+};
+
+const defaultOpenDeps = (): OpenDeps => ({
+  getHighlight: (id) => highlights.get(id),
+  tabs: browserTabs,
+  sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+  sendToTab,
+});
+
+/** Ask the content script to focus the highlight; retries while it is not ready yet (page still booting). */
+async function focusWithRetry(tabId: number, id: string, deps: OpenDeps): Promise<boolean> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < SEND_ATTEMPTS; attempt++) {
+    if (attempt > 0) await deps.sleep(SEND_RETRY_MS);
+    try {
+      return await deps.sendToTab(tabId, 'content/focusHighlight', { id });
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError;
+}
+
+/** Open (or switch to) the page of a highlight, scroll to it and flash it. Called from extension pages. */
+export async function openHighlight(id: string, deps: OpenDeps = defaultOpenDeps()): Promise<void> {
+  const h = await deps.getHighlight(id);
+  if (!h) throw new Error(t('unknownHighlight'));
+  const existing = (await deps.tabs.query()).find((tab) => tab.id != null && tab.url && normalizeUrl(tab.url) === h.url);
+  let tabId: number;
+  if (existing?.id != null) {
+    tabId = existing.id;
+    await deps.tabs.activate({ id: tabId, windowId: existing.windowId });
+  } else {
+    tabId = (await deps.tabs.create(h.url)).id;
+    try {
+      await deps.tabs.waitComplete(tabId, LOAD_TIMEOUT_MS);
+    } catch (e) {
+      // Slow page: keep going, the content script retries on its own; a closed tab fails at send time.
+      console.warn('[take-notes] waiting for the page failed', e);
+    }
+  }
+  if (!(await focusWithRetry(tabId, id, deps))) throw new Error(t('notFound'));
+}
 
 /** For messages from a web page's content script: the normalized URL of that page; null for extension pages. */
 function senderPage(sender: Browser.runtime.MessageSender | undefined): string | null {
@@ -42,6 +134,8 @@ export function createHighlightHandlers(): Handlers<BackgroundMessages> {
       broadcast('data/changed', { kind: 'highlight' });
       return saved;
     },
+
+    'highlight/open': ({ id }) => openHighlight(id),
 
     'highlight/delete': async ({ id }, sender) => {
       const page = senderPage(sender);

@@ -6,17 +6,23 @@ import { extractSourceMeta } from '@/src/cite';
 import { createAnchor } from './anchor';
 import { openPopover } from './popover';
 import {
-  clearHighlights, installMarkClicks, recolorHighlight, removeHighlight, renderHighlight, wrapRange,
+  clearHighlights, flashHighlight, installMarkClicks, marksOf, recolorHighlight, removeHighlight, renderHighlight, wrapRange,
 } from './render';
 import { createSelectionToolbar, isEditable } from './toolbar';
 
 const RETRY_DELAY_MS = 2000;
+const FOCUS_TIMEOUT_MS = 4000;
+const FOCUS_POLL_MS = 100;
+const FLASH_MS = 800;
 
 export interface ControllerDeps {
   send?: typeof sendMessage;
   location?: Pick<URL, 'href'>;
   /** Delay of the single re-anchoring attempt for content that loads late (SPA). */
   retryDelayMs?: number;
+  /** How long focusHighlight waits for the highlight to render. */
+  focusTimeoutMs?: number;
+  flashMs?: number;
 }
 
 /** All page-side highlight logic; dependencies are injectable for tests. */
@@ -24,6 +30,8 @@ export function createHighlightController(deps: ControllerDeps = {}) {
   const send = deps.send ?? sendMessage;
   const pageUrl = () => normalizeUrl((deps.location ?? window.location).href);
   const retryDelay = deps.retryDelayMs ?? RETRY_DELAY_MS;
+  const focusTimeout = deps.focusTimeoutMs ?? FOCUS_TIMEOUT_MS;
+  const flashMs = deps.flashMs ?? FLASH_MS;
   const items = new Map<string, Highlight>();
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let stopFns: Array<() => void> = [];
@@ -83,6 +91,36 @@ export function createHighlightController(deps: ControllerDeps = {}) {
     }
   }
 
+  function reveal(id: string): true {
+    const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    marksOf(id)[0]?.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    flashHighlight(id, flashMs);
+    return true;
+  }
+
+  /** Scroll to a highlight and flash it; waits for late rendering, never touches focus or selection. */
+  async function focusHighlight(id: string): Promise<boolean> {
+    const ticks = Math.ceil(focusTimeout / FOCUS_POLL_MS);
+    for (let i = 0; ; i++) {
+      const known = items.get(id);
+      // Re-anchor now and then: the page text may have appeared after the first attempt (SPA).
+      if (known && marksOf(id).length === 0 && i % 5 === 0) renderHighlight(known);
+      if (marksOf(id).length > 0) return reveal(id);
+      if (i >= ticks) break;
+      await new Promise<void>((r) => setTimeout(r, FOCUS_POLL_MS));
+    }
+    try {
+      const h = (await send('highlight/listForUrl', { url: pageUrl() })).find((x) => x.id === id);
+      if (h) {
+        items.set(id, h);
+        renderHighlight(h);
+      }
+    } catch (e) {
+      console.warn('[take-notes] reloading highlight failed', e);
+    }
+    return marksOf(id).length > 0 ? reveal(id) : false;
+  }
+
   function onMarkClick(id: string, mark: HTMLElement): void {
     const h = items.get(id);
     if (!h) return;
@@ -121,7 +159,7 @@ export function createHighlightController(deps: ControllerDeps = {}) {
     stopFns = [];
   }
 
-  return { highlightSelection, refresh, start, stop };
+  return { highlightSelection, refresh, focusHighlight, start, stop };
 }
 
 /** Called once per page from entrypoints/content.ts. */
@@ -132,5 +170,6 @@ export function setupHighlightContent(): Handlers<ContentMessages> {
   return {
     'content/highlightSelection': ({ color } = {}) => controller.highlightSelection(color),
     'content/refreshHighlights': () => controller.refresh(),
+    'content/focusHighlight': ({ id }) => controller.focusHighlight(id),
   };
 }

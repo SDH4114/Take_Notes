@@ -14,6 +14,8 @@ const dict = {
     blue: 'Синий',
     pink: 'Розовый',
     purple: 'Фиолетовый',
+    notFound: 'Не удалось найти выделение на странице — возможно, текст изменился',
+    unknownHighlight: 'Выделение не найдено',
   },
   en: {
     menuHighlight: 'Highlight selection',
@@ -28,6 +30,8 @@ const dict = {
     blue: 'Blue',
     pink: 'Pink',
     purple: 'Purple',
+    notFound: 'Could not find the highlight on the page — the text may have changed',
+    unknownHighlight: 'Highlight not found',
   },
 } satisfies Dict<string>;
 

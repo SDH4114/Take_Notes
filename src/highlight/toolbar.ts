@@ -9,10 +9,12 @@ const SHOW_DELAY_MS = 60;
 
 const STYLE = `
 :host{all:initial}
-.bar{position:absolute;z-index:2147483647;display:flex;gap:6px;padding:5px 7px;border-radius:999px;
- background:#fff;border:1px solid #d0d7de;box-shadow:0 2px 10px rgba(0,0,0,.25)}
-@media (prefers-color-scheme:dark){.bar{background:#22272e;border-color:#444c56}}
-.dot{width:18px;height:18px;border-radius:50%;border:1px solid rgba(0,0,0,.25);padding:0;cursor:pointer}
+.bar{position:absolute;z-index:2147483647;display:flex;gap:8px;padding:7px 10px;border-radius:10px;
+ background:#fff;border:1px solid #d8dee4;box-shadow:0 8px 24px rgba(0,0,0,.18),0 1px 3px rgba(0,0,0,.12);
+ font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+@media (prefers-color-scheme:dark){.bar{background:#22272e;border-color:#444c56;box-shadow:0 8px 24px rgba(0,0,0,.5)}}
+.dot{width:18px;height:18px;border-radius:50%;border:0;padding:0;cursor:pointer;transition:box-shadow .12s}
+.dot:hover{box-shadow:0 0 0 2px rgba(128,128,128,.55)}
 `;
 
 export function isEditable(node: Node | null): boolean {
