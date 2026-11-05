@@ -1,0 +1,6 @@
+.page { max-width: 520px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.check { display: flex; gap: 8px; align-items: center; }
+.status { min-height: 1.4em; }
+h2 { margin: 8px 0 0; font-size: 16px; }
+button.danger { align-self: flex-start; border-color: #c0392b; color: #c0392b; }
