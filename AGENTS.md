@@ -13,7 +13,10 @@ Firefox extension for school and university students: turn web pages into study 
 AI features are deferred.
 
 ## Status
-Prototype. Scaffold done; modules being implemented in parallel.
+Prototype v0.1.0: all modules implemented and merged, 283 unit tests pass, build + web-ext lint (0 errors) clean.
+Not yet run in a real Firefox — next step is a manual pass (see README) and fixing what breaks.
+Known gaps: popup "export .md/PDF" also saves a clip; book chapters keep remote images in PDF; math in PDF is TeX text;
+`src/crawl/book.ts bookToMarkdown` duplicates the shipped `src/export/document.ts bookToMarkdownExport` (only tests use it).
 
 ## Stack
 TypeScript, WXT 0.21 (Vite), Manifest V3 for Firefox (background = event page with DOM), Preact, IndexedDB via `idb`, `@mozilla/readability`, `turndown` + `turndown-plugin-gfm`, `dompurify`, `fflate`. Tests: Vitest + jsdom (+ `fake-indexeddb`). npm.
@@ -22,7 +25,8 @@ TypeScript, WXT 0.21 (Vite), Manifest V3 for Firefox (background = event page wi
 - `entrypoints/background.ts` — merges handler maps from every module's `setup*Background()`.
 - `entrypoints/content.ts` — merges `setup*Content()` handlers; runs on `<all_urls>`.
 - `entrypoints/{popup,sidepanel,options,crawler,print}/` — Preact pages (`sidepanel` → Firefox `sidebar_action`).
-- `src/core/` — `types.ts` (data model), `messages.ts` (typed message contract), `storage.ts` (IndexedDB), `i18n.ts`, `util.ts`.
+- `src/core/` — `types.ts` (data model), `messages.ts` (typed message contract + sender allowlist), `storage.ts` (IndexedDB), `i18n.ts`, `util.ts`, `dom-guard.ts` (isTrusted / closed shadow for page UI).
+- `src/cite/` — source metadata + GOST/APA/MLA formatting. `src/markdown/` — HTML→MD (Turndown).
 - `src/<module>/` — `extract`, `projects`, `highlight`, `crawl`, `export`, `youtube`; each has `background.ts` / `content.ts` setup functions and its own `strings.ts`.
 - `src/ui/base.css` — shared styles (light/dark).
 - `tests/` — unit tests + `tests/fixtures/` HTML.
@@ -44,6 +48,9 @@ Content script extracts/anchors on the page and answers `ContentMessages`. Backg
 - Imports with `@/` alias (project root).
 - Dates as ISO strings; IDs from `newId()`; URLs as identity via `normalizeUrl()`.
 - Any HTML coming from web pages is sanitized with DOMPurify before rendering in extension pages.
+- UI injected into web pages: `attachShadow({ mode: shadowMode() })` and `if (!isTrustedEvent(e)) return;` in every handler (`src/core/dom-guard.ts`).
+- New background message that content scripts must send → add it to `allowFromWebPages` in `entrypoints/background.ts` and validate against `sender`.
+- Context menus are created only in `entrypoints/background.ts` (`removeAll` then each module's `create*Menus()`).
 
 ## Decisions
 - WXT over hand-rolled Vite config: multi-entry build, Firefox manifest, dev runner out of the box.
@@ -53,6 +60,12 @@ Content script extracts/anchors on the page and answers `ContentMessages`. Backg
 - Crawler limited to same origin + path prefix, 1 request at a time, delay ≥1 s, max pages setting.
 
 ## Gotchas
+- Tests run with `tests/setup.ts` → `relaxDomGuardForTests()` (jsdom events are never trusted, shadow roots must be open for tests).
+- Handler tests must pass an extension-page sender (`{ url: browser.runtime.getURL('/x.html') }`); an empty sender counts as a web page.
+- Wikipedia (2025+) serves native MathML; TeX is in `data-mw` JSON `body.extsrc` (`src/extract/math.ts`).
+- Crawl state lives in the event page memory; the crawler page pings `crawl/status` every 15 s to keep it alive — closing that tab mid-crawl may lose the crawl.
+- `settings.defaultProjectId` = active project, set by popup and sidebar; hotkeys/menu/highlights save there.
+- Min Firefox 140 (for `data_collection_permissions`).
 - IndexedDB cannot index `null`: Inbox clips/highlights are stored with `_project = '__inbox__'` (handled in `storage.ts`).
 - `vitest.config.ts` imports `WxtVitest` from `wxt/testing/vitest-plugin` (not `wxt/testing`).
 - The sidebar entrypoint must be named `sidepanel` for WXT to emit `sidebar_action`.
