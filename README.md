@@ -4,7 +4,7 @@ Firefox extension that turns web pages into study notes: Markdown and PDF export
 
 ## Requirements
 - Node.js 22 (tested with 22.23.1), npm
-- Firefox 128+
+- Firefox 140+ (desktop)
 
 ## Install & build
 ```sh

@@ -16,7 +16,12 @@ export default defineConfig({
       'tn-save-page': { suggested_key: { default: 'Alt+Shift+P' }, description: 'Save page to TakeNotes' },
     },
     browser_specific_settings: {
-      gecko: { id: 'take-notes@haos', strict_min_version: '128.0' },
+      gecko: {
+        id: 'take-notes@haos',
+        strict_min_version: '140.0',
+        // Everything stays local; nothing is collected or transmitted.
+        data_collection_permissions: { required: ['none'] },
+      },
     },
   },
 });
