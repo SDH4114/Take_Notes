@@ -6,35 +6,19 @@ import '@/src/ui/base.css';
 import './style.css';
 import { onBroadcast, send, sendToTab } from '@/src/core/messages';
 import { translator } from '@/src/core/i18n';
-import type { Book, CrawlProgress, ExportFormat, TocEntry } from '@/src/core/types';
+import type { Book, CrawlProgress, TocEntry } from '@/src/core/types';
 import { defaultBookTitle } from '@/src/crawl/book';
 import { scopePrefix } from '@/src/crawl/toc';
 import { strings } from '@/src/crawl/strings';
+import { ExportMenu, IconButton, UiProvider, errText, useUi } from '@/src/ui/components';
+import { Icon } from '@/src/ui/icons';
 
 const t = translator(strings);
 type BookInfo = Omit<Book, 'chapters'>;
-const EXPORTS: { format: ExportFormat; label: 'exportPdf' | 'exportMd' | 'exportZip' }[] = [
-  { format: 'pdf', label: 'exportPdf' },
-  { format: 'md', label: 'exportMd' },
-  { format: 'md-folder-zip', label: 'exportZip' },
-];
 const IDLE: CrawlProgress = { state: 'idle', done: 0, total: 0, errors: [] };
 
-const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
-
-function ExportButtons({ id, onError }: { id: string; onError: (m: string) => void }) {
-  return (
-    <span class="row">
-      {EXPORTS.map((x) => (
-        <button key={x.format} onClick={() => send('export/book', { id, format: x.format }).catch((e) => onError(errText(e)))}>
-          {t(x.label)}
-        </button>
-      ))}
-    </span>
-  );
-}
-
-function App() {
+function Crawler() {
+  const ui = useUi();
   const tabId = useMemo(() => {
     const raw = new URLSearchParams(location.search).get('tab');
     const n = raw == null ? NaN : Number(raw);
@@ -126,7 +110,7 @@ function App() {
   };
 
   const remove = async (b: BookInfo) => {
-    if (!confirm(t('confirmDelete', { title: b.title }))) return;
+    if (!(await ui.confirm(t('confirmDelete', { title: b.title }), { okLabel: t('del'), danger: true }))) return;
     await send('book/delete', { id: b.id }).catch((e) => setError(errText(e)));
   };
 
@@ -134,88 +118,98 @@ function App() {
 
   return (
     <main class="crawler">
-      <h1>{t('pageTitle')}</h1>
-      <p class="muted small">{t('copyright')}</p>
-      {error && <p class="error">{error}</p>}
+      <header class="cr-head">
+        <span class="logo" aria-hidden="true"><Icon name="book" size={16} /></span>
+        <h1>{t('pageTitle')}</h1>
+      </header>
+      {error && <div class="error-box">{error}</div>}
 
       {tabId == null ? (
         <p class="muted">{t('noTab')}</p>
       ) : (
-        <section>
-          <label class="field">
-            <span>{t('bookTitle')}</span>
-            <input type="text" value={title} onInput={(e) => setTitle((e.target as HTMLInputElement).value)} disabled={running} />
+        <section class="cr-section">
+          <label>
+            <span class="label">{t('bookTitle')}</span>
+            <input class="input" type="text" value={title} onInput={(e) => setTitle((e.target as HTMLInputElement).value)} disabled={running} />
           </label>
 
-          <div class="row spread">
-            <h2>{t('chapters')}</h2>
-            <span class="muted">{t('selected', { n: selected.size, total: entries.length })}</span>
+          <div class="row cr-bar">
+            <h2 class="grow">{t('chapters')}</h2>
+            <span class="muted small">{t('selected', { n: selected.size, total: entries.length })}</span>
           </div>
           <div class="row">
-            <button onClick={() => setSelected(new Set(entries.map((_, i) => i)))} disabled={running}>{t('selectAll')}</button>
-            <button onClick={() => setSelected(new Set())} disabled={running}>{t('selectNone')}</button>
-            <button onClick={pickManually} disabled={running || picking}>{t('pickManual')}</button>
+            <button type="button" class="btn sm" onClick={() => setSelected(new Set(entries.map((_, i) => i)))} disabled={running}>{t('selectAll')}</button>
+            <button type="button" class="btn sm" onClick={() => setSelected(new Set())} disabled={running}>{t('selectNone')}</button>
+            <button type="button" class="btn sm" onClick={pickManually} disabled={running || picking}>{t('pickManual')}</button>
           </div>
 
           {detecting && <p class="muted">{t('detecting')}</p>}
           {!detecting && entries.length === 0 && <p class="muted">{t('nothingFound')}</p>}
-          <ul class="toc">
-            {entries.map((e, i) => (
-              <li key={e.url} style={{ paddingLeft: `${e.level * 18}px` }}>
-                <label>
-                  <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} disabled={running} />
-                  {' '}{e.title}
-                </label>
-              </li>
-            ))}
-          </ul>
+          {entries.length > 0 && (
+            <ul class="toc card">
+              {entries.map((e, i) => (
+                <li key={e.url} style={{ paddingLeft: `${e.level * 18}px` }}>
+                  <label>
+                    <input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} disabled={running} />
+                    <span>{e.title}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
 
           <div class="row">
-            <button class="primary" onClick={start} disabled={running || selected.size === 0}>{t('download')}</button>
-            {running && <button onClick={() => send('crawl/stop')}>{t('stop')}</button>}
+            <button type="button" class="btn primary lg" onClick={start} disabled={running || selected.size === 0}>
+              <Icon name="download" size={16} />{t('download')}
+            </button>
+            {running && <button type="button" class="btn lg" onClick={() => send('crawl/stop')}>{t('stop')}</button>}
           </div>
         </section>
       )}
 
       {progress.state !== 'idle' && (
-        <section>
+        <section class="cr-section card cr-progress">
           <progress max={progress.total || 1} value={progress.done} />
-          <div class="row spread">
-            <span>{t('progress', { done: progress.done, total: progress.total })} ({pct}%)</span>
-            {progress.state === 'done' && <strong>{t('done')}</strong>}
-            {progress.state === 'stopped' && <strong>{t('stopped')}</strong>}
-            {progress.state === 'error' && <strong class="error">{t('failed')}</strong>}
+          <div class="row">
+            <span class="grow">{t('progress', { done: progress.done, total: progress.total })} ({pct}%)</span>
+            {progress.state === 'done' && <span class="badge ok">{t('done')}</span>}
+            {progress.state === 'stopped' && <span class="badge">{t('stopped')}</span>}
+            {progress.state === 'error' && <span class="badge err">{t('failed')}</span>}
           </div>
           {running && progress.current && <p class="muted small url">{progress.current}</p>}
           {progress.errors.length > 0 && (
             <details>
               <summary>{t('errors', { n: progress.errors.length })}</summary>
-              <ul class="errors">
+              <ul class="errors small">
                 {progress.errors.map((er, i) => <li key={i}><span class="url">{er.url}</span>: {er.message}</li>)}
               </ul>
             </details>
           )}
-          {progress.bookId && <ExportButtons id={progress.bookId} onError={setError} />}
+          {progress.bookId && (
+            <div><ExportMenu subject={{ kind: 'book', id: progress.bookId }} variant="primary" placement="down" align="left" /></div>
+          )}
         </section>
       )}
 
-      <section>
+      <section class="cr-section">
         <h2>{t('saved')}</h2>
         {saved.length === 0 && <p class="muted">{t('noBooks')}</p>}
         <ul class="books">
           {saved.map((b) => (
-            <li key={b.id}>
-              <div class="row spread">
-                <span><strong>{b.title}</strong> <span class="muted small">{b.createdAt.slice(0, 10)}</span></span>
-                <button onClick={() => remove(b)}>{t('del')}</button>
+            <li key={b.id} class="card">
+              <div class="grow">
+                <strong>{b.title}</strong> <span class="muted small">{b.createdAt.slice(0, 10)}</span>
               </div>
-              <ExportButtons id={b.id} onError={setError} />
+              <ExportMenu subject={{ kind: 'book', id: b.id }} placement="down" align="right" />
+              <IconButton icon="trash" danger title={t('del')} onClick={() => void remove(b)} />
             </li>
           ))}
         </ul>
       </section>
+
+      <p class="muted small cr-copy">{t('copyright')}</p>
     </main>
   );
 }
 
-render(<App />, document.getElementById('app')!);
+render(<UiProvider><Crawler /></UiProvider>, document.getElementById('app')!);

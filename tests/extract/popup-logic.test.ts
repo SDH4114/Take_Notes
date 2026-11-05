@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { crawlerPath, isYoutubeWatchUrl } from '@/entrypoints/popup/logic';
+import { crawlerPath, findClipForUrl, isYoutubeWatchUrl } from '@/entrypoints/popup/logic';
+import type { Clip } from '@/src/core/types';
+
+describe('findClipForUrl', () => {
+  const clip = (id: string, url: string, kind: Clip['kind'] = 'page') => ({ id, kind, source: { url } }) as Clip;
+
+  it('matches a page clip by normalized url (hash and tracking params ignored)', () => {
+    const clips = [clip('a', 'https://x.test/other'), clip('b', 'https://x.test/p?utm_source=n#top')];
+    expect(findClipForUrl(clips, 'https://x.test/p')?.id).toBe('b');
+  });
+  it('ignores selections and returns undefined when nothing matches', () => {
+    expect(findClipForUrl([clip('a', 'https://x.test/p', 'selection')], 'https://x.test/p')).toBeUndefined();
+    expect(findClipForUrl([], 'https://x.test/p')).toBeUndefined();
+    expect(findClipForUrl([clip('a', 'https://x.test/p')], undefined)).toBeUndefined();
+  });
+});
 
 describe('popup logic', () => {
   it('detects youtube watch pages only', () => {
