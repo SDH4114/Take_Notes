@@ -1,0 +1,112 @@
+// IndexedDB persistence. Usable from background and extension pages (same origin).
+// Content scripts must go through background messages instead.
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import type { Asset, Book, Clip, Highlight, Project, Settings } from './types';
+import { DEFAULT_SETTINGS } from './types';
+
+interface TNSchema extends DBSchema {
+  projects: { key: string; value: Project };
+  clips: { key: string; value: Clip; indexes: { byProject: string } };
+  assets: { key: string; value: Asset; indexes: { byUrl: string } };
+  highlights: { key: string; value: Highlight; indexes: { byUrl: string; byProject: string } };
+  books: { key: string; value: Book };
+  kv: { key: string; value: unknown };
+}
+
+/** IndexedDB cannot index null, so Inbox (projectId=null) is stored as this key. */
+export const INBOX_KEY = '__inbox__';
+const pk = (id: string | null) => id ?? INBOX_KEY;
+
+let dbp: Promise<IDBPDatabase<TNSchema>> | null = null;
+export function db(): Promise<IDBPDatabase<TNSchema>> {
+  dbp ??= openDB<TNSchema>('take-notes', 1, {
+    upgrade(d) {
+      d.createObjectStore('projects', { keyPath: 'id' });
+      d.createObjectStore('clips', { keyPath: 'id' }).createIndex('byProject', '_project');
+      d.createObjectStore('assets', { keyPath: 'id' }).createIndex('byUrl', 'url');
+      const h = d.createObjectStore('highlights', { keyPath: 'id' });
+      h.createIndex('byUrl', 'url');
+      h.createIndex('byProject', '_project');
+      d.createObjectStore('books', { keyPath: 'id' });
+      d.createObjectStore('kv');
+    },
+  });
+  return dbp;
+}
+
+type WithProject<T> = T & { _project: string };
+const tag = <T extends { projectId: string | null }>(v: T): WithProject<T> => ({ ...v, _project: pk(v.projectId) });
+const untag = <T>(v: T): T => { const { _project, ...rest } = v as WithProject<T>; void _project; return rest as T; };
+
+// ---- projects
+export const projects = {
+  async list(): Promise<Project[]> { return (await (await db()).getAll('projects')).sort((a, b) => a.name.localeCompare(b.name)); },
+  async get(id: string) { return (await db()).get('projects', id); },
+  async put(p: Project) { await (await db()).put('projects', p); return p; },
+  async delete(id: string) {
+    const d = await db();
+    const tx = d.transaction(['projects', 'clips'], 'readwrite');
+    await tx.objectStore('projects').delete(id);
+    const idx = tx.objectStore('clips').index('byProject');
+    for (let c = await idx.openCursor(id); c; c = await c.continue()) await c.delete();
+    await tx.done;
+  },
+};
+
+// ---- clips
+export const clips = {
+  async listByProject(projectId: string | null): Promise<Clip[]> {
+    const all = await (await db()).getAllFromIndex('clips', 'byProject', pk(projectId));
+    return all.map(untag).sort((a, b) => a.order - b.order);
+  },
+  async get(id: string) { const v = await (await db()).get('clips', id); return v && untag(v); },
+  async put(c: Clip) { await (await db()).put('clips', tag(c) as unknown as Clip); return c; },
+  async delete(id: string) { await (await db()).delete('clips', id); },
+  async nextOrder(projectId: string | null): Promise<number> {
+    const list = await clips.listByProject(projectId);
+    return list.length ? Math.max(...list.map((c) => c.order)) + 1 : 0;
+  },
+};
+
+// ---- assets
+export const assets = {
+  async get(id: string) { return (await db()).get('assets', id); },
+  async getMany(ids: string[]) { const d = await db(); return (await Promise.all(ids.map((i) => d.get('assets', i)))).filter((a): a is Asset => !!a); },
+  async findByUrl(url: string) { return (await db()).getFromIndex('assets', 'byUrl', url); },
+  async put(a: Asset) { await (await db()).put('assets', a); return a; },
+  async delete(id: string) { await (await db()).delete('assets', id); },
+};
+
+// ---- highlights
+export const highlights = {
+  async listByUrl(url: string): Promise<Highlight[]> {
+    return (await (await db()).getAllFromIndex('highlights', 'byUrl', url)).map(untag);
+  },
+  async listByProject(projectId: string | null): Promise<Highlight[]> {
+    return (await (await db()).getAllFromIndex('highlights', 'byProject', pk(projectId))).map(untag);
+  },
+  async listAll(): Promise<Highlight[]> { return (await (await db()).getAll('highlights')).map(untag); },
+  async put(h: Highlight) { await (await db()).put('highlights', tag(h) as unknown as Highlight); return h; },
+  async delete(id: string) { await (await db()).delete('highlights', id); },
+};
+
+// ---- books
+export const books = {
+  async list(): Promise<Book[]> { return (await db()).getAll('books'); },
+  async get(id: string) { return (await db()).get('books', id); },
+  async put(b: Book) { await (await db()).put('books', b); return b; },
+  async delete(id: string) { await (await db()).delete('books', id); },
+};
+
+// ---- settings
+export const settings = {
+  async get(): Promise<Settings> {
+    const v = (await (await db()).get('kv', 'settings')) as Partial<Settings> | undefined;
+    return { ...DEFAULT_SETTINGS, ...v, obsidian: { ...DEFAULT_SETTINGS.obsidian, ...v?.obsidian }, crawl: { ...DEFAULT_SETTINGS.crawl, ...v?.crawl } };
+  },
+  async set(patch: Partial<Settings>): Promise<Settings> {
+    const next = { ...(await settings.get()), ...patch };
+    await (await db()).put('kv', next, 'settings');
+    return next;
+  },
+};
