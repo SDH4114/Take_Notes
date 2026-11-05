@@ -47,18 +47,22 @@ describe('highlightSelection', () => {
     expect(window.getSelection()!.isCollapsed).toBe(true);
   });
 
-  it('defaults to yellow and returns null without a selection', async () => {
+  it('defaults to the palette main color (yellow fallback) and returns null without a selection', async () => {
     const c = createHighlightController({ send: send as never });
     expect(await c.highlightSelection()).toBeNull();
     select('world');
-    expect((await c.highlightSelection())!.color).toBe('yellow');
+    expect((await c.highlightSelection())!.color).toBe('#facc15');
+    send.mockImplementation(async (type: string, p: unknown) => (type === 'highlight/palette' ? { colors: ['#123456'], defaultColor: '#123456' } : p));
+    select('world');
+    expect((await c.highlightSelection())!.color).toBe('#123456'); // no palette cached yet → fetched from settings
+
   });
 
   it('removes the mark again when saving fails', async () => {
     send.mockRejectedValueOnce(new Error('boom'));
     const c = createHighlightController({ send: send as never });
     select('world');
-    await expect(c.highlightSelection()).rejects.toThrow('boom');
+    await expect(c.highlightSelection('#facc15')).rejects.toThrow('boom');
     expect(markText()).toBe('');
   });
 
@@ -110,15 +114,17 @@ describe('marks interaction', () => {
   });
 
   it('recolor from the popover updates the mark and saves', async () => {
-    send.mockImplementation(async (type: string) => (type === 'highlight/listForUrl' ? [stored()] : undefined));
+    send.mockImplementation(async (type: string) => (type === 'highlight/listForUrl' ? [stored()]
+      : type === 'highlight/palette' ? { colors: ['#facc15', '#a78bfa'], defaultColor: '#facc15' } : undefined));
     const c = createHighlightController({ send: send as never });
     await c.refresh();
     c.start();
+    await Promise.resolve(); await Promise.resolve(); // palette loaded by the toolbar
     (document.querySelector('mark.tn-hl') as HTMLElement).click();
     const root = document.querySelector('#tn-popover-host')!.shadowRoot!;
-    (root.querySelector('button.sw[data-color="purple"]') as HTMLElement).click();
-    expect(document.querySelector('mark.tn-hl')!.className).toBe('tn-hl tn-hl-purple');
-    expect(send).toHaveBeenCalledWith('highlight/save', expect.objectContaining({ id: 'old', color: 'purple' }));
+    (root.querySelector('button.sw[data-color="#a78bfa"]') as HTMLElement).click();
+    expect((document.querySelector('mark.tn-hl') as HTMLElement).style.getPropertyValue('--tn-hl-rgb')).toBe('167,139,250');
+    expect(send).toHaveBeenCalledWith('highlight/save', expect.objectContaining({ id: 'old', color: '#a78bfa' }));
     c.stop();
   });
 

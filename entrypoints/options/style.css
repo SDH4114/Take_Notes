@@ -20,3 +20,17 @@
 .color-pick.on { border-color: var(--fg); }
 .color-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 520px) { .style-cards { grid-template-columns: 1fr; } }
+
+.palette { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
+.swatch { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.swatch-dot { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border-radius: 50%;
+  border: 2px solid var(--bg); box-shadow: 0 0 0 1px var(--border-strong); cursor: pointer; color: #18181b; transition: transform .1s; }
+.swatch-dot:hover { transform: scale(1.06); }
+.swatch.on .swatch-dot { box-shadow: 0 0 0 2px var(--fg); }
+.swatch-x { position: absolute; top: -4px; right: -4px; display: none; width: 18px; height: 18px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg-sub); cursor: pointer; align-items: center; justify-content: center; }
+.swatch:hover .swatch-x, .swatch-x:focus-visible { display: inline-flex; }
+.swatch-x:hover { color: var(--danger); border-color: var(--danger); }
+.swatch-label { font-size: 11px; color: var(--muted); height: 14px; }
+.swatch.add .swatch-dot { background: var(--bg-sub); color: var(--fg-sub); border-style: dashed; box-shadow: none; border-color: var(--border-strong); }
+.sr-only { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }

@@ -17,7 +17,8 @@ export function highlightsToMarkdown(items: Highlight[]): string {
     lines.push(`## [${escapeTitle(title || url)}](${url})`, '');
     for (const h of list) {
       const quote = h.text.trim().split(/\r?\n/).map((l) => `> ${l}`);
-      if (h.color !== 'yellow') quote[quote.length - 1] += ` (${h.color})`;
+      // Legacy named colors get a text label; custom hex colors carry no meaning in plain Markdown.
+      if (h.color !== 'yellow' && !h.color.startsWith('#')) quote[quote.length - 1] += ` (${h.color})`;
       lines.push(...quote, '');
       if (h.note?.trim()) lines.push(h.note.trim(), '');
     }

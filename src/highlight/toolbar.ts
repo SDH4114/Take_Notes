@@ -1,21 +1,40 @@
-// Small floating "highlight" toolbar shown near a fresh text selection (Shadow DOM). Owner: agent C.
+// Floating highlight bubble under a fresh text selection (closed Shadow DOM).
+// Collapsed: [default color] [›]. The arrow expands the rest of the user's palette.
 import type { HighlightColor } from '@/src/core/types';
-import { COLORS, SWATCH } from './render';
+import { colorHex } from '@/src/core/colors';
 import { t } from './strings';
 import { isTrustedEvent, shadowMode } from '@/src/core/dom-guard';
 
 const HOST_ID = 'tn-toolbar-host';
 const SHOW_DELAY_MS = 60;
+const GAP_PX = 8;
+const EDGE_PX = 6;
+
+export interface Palette { colors: string[]; defaultColor: string }
 
 const STYLE = `
 :host{all:initial}
-.bar{position:absolute;z-index:2147483647;display:flex;gap:8px;padding:7px 10px;border-radius:10px;
- background:#fff;border:1px solid #d8dee4;box-shadow:0 8px 24px rgba(0,0,0,.18),0 1px 3px rgba(0,0,0,.12);
- font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
-@media (prefers-color-scheme:dark){.bar{background:#22272e;border-color:#444c56;box-shadow:0 8px 24px rgba(0,0,0,.5)}}
-.dot{width:18px;height:18px;border-radius:50%;border:0;padding:0;cursor:pointer;transition:box-shadow .12s}
-.dot:hover{box-shadow:0 0 0 2px rgba(128,128,128,.55)}
+.bar{position:absolute;z-index:2147483647;display:flex;align-items:center;gap:2px;padding:4px;border-radius:999px;
+ background:#fff;border:1px solid rgba(0,0,0,.1);box-shadow:0 6px 20px rgba(0,0,0,.16),0 1px 3px rgba(0,0,0,.1);
+ font:13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;animation:in .12s ease-out;transform-origin:top center}
+@media (prefers-color-scheme:dark){.bar{background:#26262b;border-color:rgba(255,255,255,.12);box-shadow:0 6px 20px rgba(0,0,0,.5)}}
+@keyframes in{from{opacity:0;transform:translateY(-3px) scale(.96)}}
+button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.sw{width:26px;height:26px;border-radius:50%}
+.sw i{width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);transition:transform .1s}
+.sw:hover i{transform:scale(1.15)}
+.sw:focus-visible{outline:2px solid #5b5bd6;outline-offset:1px}
+.more{width:22px;height:26px;border-radius:999px;color:#71717a}
+.more:hover{background:rgba(127,127,127,.14);color:inherit}
+.more svg{transition:transform .15s}
+.bar.open .more svg{transform:rotate(180deg)}
+.rest{display:none;align-items:center;gap:2px;padding-left:2px;margin-left:2px;border-left:1px solid rgba(127,127,127,.25)}
+.bar.open .rest{display:flex;animation:in .12s ease-out}
+@media (prefers-color-scheme:dark){.more{color:#a1a1aa}}
+@media (prefers-reduced-motion:reduce){.bar,.bar.open .rest{animation:none}.more svg,.sw i{transition:none}}
 `;
+
+const CHEVRON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
 
 export function isEditable(node: Node | null): boolean {
   const el = node instanceof Element ? node : node?.parentElement ?? null;
@@ -24,13 +43,26 @@ export function isEditable(node: Node | null): boolean {
   return (el as HTMLElement).isContentEditable === true;
 }
 
-function selectionRect(range: Range): { left: number; bottom: number } {
-  const rects = range.getClientRects?.();
-  const last = rects && rects.length ? rects[rects.length - 1] : range.getBoundingClientRect?.();
-  return { left: last?.left ?? 0, bottom: last?.bottom ?? 0 };
+/** Bounding box of the selection in viewport coordinates. */
+function selectionBox(range: Range): { left: number; right: number; bottom: number } {
+  const r = range.getBoundingClientRect?.();
+  return { left: r?.left ?? 0, right: r?.right ?? 0, bottom: r?.bottom ?? 0 };
 }
 
-export function createSelectionToolbar(onPick: (color: HighlightColor) => void): { destroy(): void } {
+/** Left/top (document coords) that center a bar of `width` under the box, clamped to the viewport. */
+export function centeredPosition(
+  box: { left: number; right: number; bottom: number }, width: number,
+  view: { width: number; scrollX: number; scrollY: number },
+): { left: number; top: number } {
+  const center = (box.left + box.right) / 2;
+  const left = Math.min(Math.max(EDGE_PX, center - width / 2), Math.max(EDGE_PX, view.width - width - EDGE_PX));
+  return { left: left + view.scrollX, top: box.bottom + GAP_PX + view.scrollY };
+}
+
+export function createSelectionToolbar(
+  onPick: (color: HighlightColor) => void,
+  loadPalette: () => Promise<Palette> = async () => ({ colors: ['#facc15'], defaultColor: '#facc15' }),
+): { destroy(): void } {
   const host = document.createElement('div');
   host.id = HOST_ID;
   host.style.display = 'none';
@@ -39,23 +71,67 @@ export function createSelectionToolbar(onPick: (color: HighlightColor) => void):
   style.textContent = STYLE;
   const bar = document.createElement('div');
   bar.className = 'bar';
-  for (const c of COLORS) {
+  root.append(style, bar);
+
+  let palette: Palette = { colors: ['#facc15'], defaultColor: '#facc15' };
+  let paletteKey = '';
+
+  const swatch = (color: string, title: string): HTMLButtonElement => {
     const b = document.createElement('button');
-    b.className = 'dot';
-    b.title = `${t('highlight')}: ${t(c)}`;
-    b.style.background = SWATCH[c];
-    // Keep the page selection alive while clicking the toolbar.
-    b.addEventListener('mousedown', (e) => e.preventDefault());
+    b.className = 'sw';
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    const dot = document.createElement('i');
+    dot.style.background = colorHex(color);
+    b.appendChild(dot);
+    b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the page selection alive
     b.addEventListener('click', (e) => {
       if (!isTrustedEvent(e)) return;
       hide();
-      onPick(c);
+      onPick(colorHex(color));
     });
-    bar.appendChild(b);
-  }
-  root.append(style, bar);
+    return b;
+  };
 
-  function hide(): void { host.style.display = 'none'; host.remove(); }
+  function build(): void {
+    const key = JSON.stringify(palette);
+    if (key === paletteKey) return;
+    paletteKey = key;
+    bar.replaceChildren();
+    const [first, ...rest] = palette.colors.length ? palette.colors : [palette.defaultColor];
+    bar.appendChild(swatch(first!, t('highlight')));
+    if (rest.length) {
+      const more = document.createElement('button');
+      more.className = 'more';
+      more.title = t('moreColors');
+      more.setAttribute('aria-label', t('moreColors'));
+      more.innerHTML = CHEVRON; // static constant
+      more.addEventListener('mousedown', (e) => e.preventDefault());
+      more.addEventListener('click', (e) => {
+        if (!isTrustedEvent(e)) return;
+        bar.classList.toggle('open');
+        place(); // width changed: re-center
+      });
+      const wrap = document.createElement('span');
+      wrap.className = 'rest';
+      rest.forEach((c) => wrap.appendChild(swatch(c, t('highlight'))));
+      bar.append(more, wrap);
+    }
+  }
+
+  let box = { left: 0, right: 0, bottom: 0 };
+  function place(): void {
+    const width = bar.getBoundingClientRect().width || 60;
+    const pos = centeredPosition(box, width, { width: document.documentElement.clientWidth || window.innerWidth, scrollX: window.scrollX, scrollY: window.scrollY });
+    bar.style.left = `${pos.left}px`;
+    bar.style.top = `${pos.top}px`;
+  }
+
+  function hide(): void {
+    host.style.display = 'none';
+    bar.classList.remove('open');
+    host.remove();
+  }
 
   function update(): void {
     const sel = window.getSelection();
@@ -63,15 +139,23 @@ export function createSelectionToolbar(onPick: (color: HighlightColor) => void):
     const active = document.activeElement;
     if (isEditable(sel.anchorNode) || isEditable(sel.focusNode) || isEditable(active)) return hide();
     if (host.contains(sel.anchorNode)) return hide();
-    const pos = selectionRect(sel.getRangeAt(0));
-    bar.style.left = `${Math.max(4, pos.left + window.scrollX)}px`;
-    bar.style.top = `${pos.bottom + window.scrollY + 6}px`;
+    box = selectionBox(sel.getRangeAt(0));
+    build();
+    bar.classList.remove('open');
     if (!host.isConnected) document.body.appendChild(host);
     host.style.display = '';
+    place();
+    // Settings may have changed since last time: refresh and rebuild if needed.
+    loadPalette().then((p) => {
+      palette = p;
+      if (host.isConnected) { build(); place(); }
+    }).catch(() => {});
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const schedule = () => {
+  const schedule = (e?: Event) => {
+    // Clicks inside the bubble (e.g. the arrow) must not re-run update(), which would collapse it.
+    if (e && e.composedPath?.().includes(host)) return;
     clearTimeout(timer);
     timer = setTimeout(update, SHOW_DELAY_MS);
   };
@@ -84,6 +168,7 @@ export function createSelectionToolbar(onPick: (color: HighlightColor) => void):
   document.addEventListener('keyup', schedule);
   document.addEventListener('selectionchange', onSelChange);
   // Host is attached lazily in update(): don't advertise the extension on every page.
+  loadPalette().then((p) => { palette = p; }).catch(() => {});
 
   return {
     destroy() {

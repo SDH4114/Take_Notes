@@ -27,6 +27,8 @@ export interface BackgroundMessages {
   'highlight/listAll': [{ projectId?: string | null }, Highlight[]];
   'highlight/save': [Highlight, Highlight];
   'highlight/delete': [{ id: string }, void];
+  /** Palette for the in-page toolbar (default color first). */
+  'highlight/palette': [void, { colors: string[]; defaultColor: string }];
   /** Open (or focus) the highlight's page, scroll to it and flash it. */
   'highlight/open': [{ id: string }, void];
   // crawler (owner: crawl module)

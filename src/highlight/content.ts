@@ -44,7 +44,12 @@ export function createHighlightController(deps: ControllerDeps = {}) {
     }
   }
 
-  async function highlightSelection(color: HighlightColor = 'yellow'): Promise<Highlight | null> {
+  // User palette from Settings (background owns IndexedDB); refreshed whenever the bubble opens.
+  let palette: { colors: string[]; defaultColor: string } | undefined;
+  const loadPalette = async () => (palette = await send('highlight/palette'));
+
+  async function highlightSelection(color?: HighlightColor): Promise<Highlight | null> {
+    color ??= palette?.defaultColor ?? (await loadPalette().catch(() => undefined))?.defaultColor ?? '#facc15';
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
     if (isEditable(sel.anchorNode) || isEditable(sel.focusNode) || isEditable(document.activeElement)) return null;
@@ -125,7 +130,7 @@ export function createHighlightController(deps: ControllerDeps = {}) {
     const h = items.get(id);
     if (!h) return;
     openPopover({
-      mark, color: h.color, note: h.note ?? '', text: h.text,
+      mark, color: h.color, note: h.note ?? '', text: h.text, palette: palette?.colors,
       onColor: (color) => {
         recolorHighlight(id, color);
         const cur = items.get(id) ?? h;
@@ -149,7 +154,7 @@ export function createHighlightController(deps: ControllerDeps = {}) {
   function start(): void {
     const toolbar = createSelectionToolbar((color) => {
       highlightSelection(color).catch((e) => console.warn('[take-notes] highlight failed', e));
-    });
+    }, loadPalette);
     stopFns = [installMarkClicks(onMarkClick), () => toolbar.destroy()];
   }
 

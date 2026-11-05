@@ -4,6 +4,7 @@ const dict = {
   ru: {
     menuHighlight: 'Выделить маркером',
     highlight: 'Выделить',
+    moreColors: 'Другие цвета',
     note: 'Заметка…',
     delete: 'Удалить',
     copy: 'Копировать текст',
@@ -20,6 +21,7 @@ const dict = {
   en: {
     menuHighlight: 'Highlight selection',
     highlight: 'Highlight',
+    moreColors: 'More colors',
     note: 'Note…',
     delete: 'Delete',
     copy: 'Copy text',

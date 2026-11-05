@@ -3,6 +3,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Asset, Book, Clip, Highlight, Project, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
+import { colorHex, normalizePalette } from './colors';
 
 interface TNSchema extends DBSchema {
   projects: { key: string; value: Project };
@@ -108,7 +109,11 @@ export const books = {
 export const settings = {
   async get(): Promise<Settings> {
     const v = (await (await db()).get('kv', 'settings')) as Partial<Settings> | undefined;
-    return { ...DEFAULT_SETTINGS, ...v, obsidian: { ...DEFAULT_SETTINGS.obsidian, ...v?.obsidian }, crawl: { ...DEFAULT_SETTINGS.crawl, ...v?.crawl } };
+    const merged = { ...DEFAULT_SETTINGS, ...v, obsidian: { ...DEFAULT_SETTINGS.obsidian, ...v?.obsidian }, crawl: { ...DEFAULT_SETTINGS.crawl, ...v?.crawl } };
+    // Settings saved before palettes existed: legacy color names → hex.
+    merged.highlightPalette = normalizePalette(merged.highlightPalette);
+    merged.highlightColor = colorHex(merged.highlightColor);
+    return merged;
   },
   async set(patch: Partial<Settings>): Promise<Settings> {
     const next = { ...(await settings.get()), ...patch };

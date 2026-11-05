@@ -8,6 +8,7 @@ import { renderMarkdown } from '@/src/ui/markdown';
 import { ut } from '@/src/ui/strings';
 import { relativeDate } from './logic';
 import { lt } from './strings';
+import { colorHex } from '@/src/core/colors';
 
 export function HighlightPane(p: { h: Highlight; onJump: (h: Highlight) => void; onDelete: (h: Highlight) => void }) {
   const { h } = p;
@@ -19,7 +20,7 @@ export function HighlightPane(p: { h: Highlight; onJump: (h: Highlight) => void;
             <Icon name="external" size={13} />{domainOf(h.url)}
           </a>
           <span class="muted small" title={new Date(h.createdAt).toLocaleString()}>{relativeDate(h.createdAt)}</span>
-          <span class={`dot ${h.color}`} title={lt('color')} />
+          <span class="dot" style={{ background: colorHex(h.color) }} title={lt('color')} />
           <span class="grow" />
           <IconButton icon="trash" title={ut('delete')} danger onClick={() => p.onDelete(h)} />
         </div>
@@ -28,7 +29,7 @@ export function HighlightPane(p: { h: Highlight; onJump: (h: Highlight) => void;
       <div class="pane-body mode-view">
         <div class="preview-scroll">
           <div class="reading">
-            <blockquote class="hl-quote" style={{ borderLeftColor: `var(--hl-${h.color})` }}>{h.text}</blockquote>
+            <blockquote class="hl-quote" style={{ borderLeftColor: colorHex(h.color) }}>{h.text}</blockquote>
             {h.note && (
               <div class="hl-note">
                 <div class="label">{lt('noteInHighlight')}</div>

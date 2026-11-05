@@ -18,7 +18,7 @@ describe('wrapRange', () => {
     const before = document.body.textContent;
     const ms = wrapRange(rangeForRaw('lo brave new wor'), 'a', 'green');
     expect(ms.map((m) => m.textContent)).toEqual(['lo ', 'brave new', ' wor']);
-    expect(ms.every((m) => m.className === 'tn-hl tn-hl-green')).toBe(true);
+    expect(ms.every((m) => m.className === 'tn-hl' && m.style.getPropertyValue('--tn-hl-rgb') === '74,222,128')).toBe(true);
     expect(document.body.textContent).toBe(before);
     expect(document.querySelector('b')!.firstElementChild!.tagName).toBe('MARK');
   });
@@ -27,7 +27,7 @@ describe('wrapRange', () => {
     const ms = wrapRange(rangeForRaw('world'), 'a', 'yellow');
     expect(ms).toHaveLength(1);
     expect(document.querySelector('p')!.innerHTML).toBe(
-      'Hello <b>brave new</b> <mark class="tn-hl tn-hl-yellow" data-tn-id="a">world</mark> and more',
+      'Hello <b>brave new</b> <mark class="tn-hl" style="--tn-hl-rgb: 250,204,21 !important;" data-tn-id="a">world</mark> and more',
     );
   });
 
@@ -63,8 +63,13 @@ describe('renderHighlight / removeHighlight / recolor / clear', () => {
 
   it('recolors every mark of the highlight', () => {
     renderHighlight({ id: 'h1', color: 'blue', anchor: createAnchor(rangeForRaw('lo brave')) });
-    recolorHighlight('h1', 'purple');
-    expect(marks('h1').every((m) => m.className === 'tn-hl tn-hl-purple')).toBe(true);
+    recolorHighlight('h1', '#123456');
+    expect(marks('h1').every((m) => m.style.getPropertyValue('--tn-hl-rgb') === '18,52,86')).toBe(true);
+  });
+
+  it('never lets an invalid color reach page CSS', () => {
+    const [m] = wrapRange(rangeForRaw('world'), 'x', 'red;} body{display:none');
+    expect(m!.style.getPropertyValue('--tn-hl-rgb')).toBe('250,204,21');
   });
 
   it('clearHighlights removes all marks', () => {

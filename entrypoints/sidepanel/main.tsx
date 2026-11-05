@@ -15,6 +15,7 @@ import {
 } from '@/src/ui/components';
 import { Icon, type IconName } from '@/src/ui/icons';
 import { renderMarkdown } from '@/src/ui/markdown';
+import { colorHex } from '@/src/core/colors';
 
 const KIND_ICON: Record<Clip['kind'], IconName> = { page: 'globe', selection: 'scissors', transcript: 'video', chapter: 'book' };
 
@@ -68,7 +69,7 @@ function HighlightCard({ h, onOpen, onDelete }: { h: Highlight; onOpen: (h: High
   return (
     <li
       class="hl card" role="button" tabIndex={0} title={t('goToHighlight')}
-      style={{ borderLeftColor: `var(--hl-${h.color})` }}
+      style={{ borderLeftColor: colorHex(h.color) }}
       onClick={() => onOpen(h)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(h); } }}
     >

@@ -13,7 +13,7 @@ Firefox extension for school and university students: turn web pages into study 
 AI features are deferred.
 
 ## Status
-Prototype v0.2.0: UI/UX redesign done — Library tab with Markdown editor, new popup/sidebar/options/crawler, jump-to-highlight.
+Prototype v0.3.0 (custom highlight palette + bubble toolbar); UI/UX redesign done — Library tab with Markdown editor, new popup/sidebar/options/crawler, jump-to-highlight.
 365 unit tests, build + web-ext lint (0 errors) clean. Tested by Haos in Zen (Firefox-based) at v0.1; v0.2 not yet run in a browser.
 Known gaps: book chapters keep remote images in PDF; math in PDF is TeX text; `src/crawl/book.ts bookToMarkdown`
 duplicates `src/export/document.ts bookToMarkdownExport` (only tests use it); Library loads full books to count chapters.
@@ -64,6 +64,7 @@ Content script extracts/anchors on the page and answers `ContentMessages`. Backg
 - Crawler limited to same origin + path prefix, 1 request at a time, delay ≥1 s, max pages setting.
 
 ## Gotchas
+- Highlight colors: stored as `#rrggbb`, old data may hold names (`yellow`…). Always go through `colorHex()` (`src/core/colors.ts`) — it is also the CSS-injection guard for marks (`--tn-hl-rgb` on each `<mark>`). Palette = `settings.highlightPalette`, main color = `settings.highlightColor`; content scripts get it via `highlight/palette`.
 - Library editor keeps its own draft; `data/changed` refreshes must not reset the clip being edited. Autosave merges onto the stored clip.
 - Firefox may intercept some editor shortcuts (Ctrl/Cmd+N, K, E); toolbar buttons always work.
 - Tests run with `tests/setup.ts` → `relaxDomGuardForTests()` (jsdom events are never trusted, shadow roots must be open for tests).

@@ -2,22 +2,22 @@
 import type { HighlightColor, TextQuoteAnchor } from '@/src/core/types';
 import { resolveAnchor } from './anchor';
 import { isTrustedEvent } from '@/src/core/dom-guard';
+import { colorHex, hexToRgb } from '@/src/core/colors';
 
-export const COLORS: HighlightColor[] = ['yellow', 'green', 'blue', 'pink', 'purple'];
-/** Swatch colors, also used by the popover/toolbar. */
-export const SWATCH: Record<HighlightColor, string> = {
-  yellow: '#facc15', green: '#4ade80', blue: '#60a5fa', pink: '#f472b6', purple: '#a78bfa',
-};
+/** Set a mark's color through a CSS variable (value validated by colorHex — page CSS never sees raw input). */
+function paint(mark: HTMLElement, color: HighlightColor): void {
+  mark.style.setProperty('--tn-hl-rgb', hexToRgb(colorHex(color)), 'important');
+}
 
 const STYLE_ID = 'tn-hl-style';
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'TEXTAREA']);
 
 // Semi-transparent backgrounds and inherited text color keep text readable on light and dark sites.
 function css(): string {
-  const rgb: Record<HighlightColor, string> = {
-    yellow: '250,204,21', green: '74,222,128', blue: '96,165,250', pink: '244,114,182', purple: '167,139,250',
-  };
-  const rules = COLORS.map((c) => `mark.tn-hl-${c}{background-color:rgba(${rgb[c]},.4)!important;box-shadow:0 0 0 1px rgba(${rgb[c]},.25)}`);
+  // Per-mark color via --tn-hl-rgb; semi-transparent so text stays readable on light and dark sites.
+  const rules = [
+    'mark.tn-hl{background-color:rgba(var(--tn-hl-rgb,250,204,21),.4)!important;box-shadow:0 0 0 1px rgba(var(--tn-hl-rgb,250,204,21),.25)}',
+  ];
   // Flash: a vivid ring + brighter background; box-shadow/outline only, so text never shifts.
   const flash = [
     '@keyframes tn-hl-pulse{0%{box-shadow:0 0 0 0 rgba(255,120,0,.95),0 0 0 0 rgba(255,120,0,.6)}'
@@ -67,7 +67,8 @@ export function wrapRange(range: Range, id: string, color: HighlightColor): HTML
     if (from > 0) target = target.splitText(from);
     if (!target.data.trim()) continue; // whitespace between blocks: wrapping would break e.g. <ul>/<tr>
     const mark = doc.createElement('mark');
-    mark.className = `tn-hl tn-hl-${color}`;
+    mark.className = 'tn-hl';
+    paint(mark, color);
     mark.dataset.tnId = id;
     target.parentNode!.replaceChild(mark, target);
     mark.appendChild(target);
@@ -116,7 +117,7 @@ export function flashHighlight(id: string, ms: number): void {
 }
 
 export function recolorHighlight(id: string, color: HighlightColor): void {
-  for (const m of marksOf(id)) m.className = `tn-hl tn-hl-${color}`;
+  for (const m of marksOf(id)) paint(m, color);
 }
 
 export function clearHighlights(): void {

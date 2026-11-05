@@ -5,14 +5,14 @@ import { useEffect, useState } from 'preact/hooks';
 import '@/src/ui/base.css';
 import './style.css';
 import { settings as settingsStore } from '@/src/core/storage';
-import { DEFAULT_SETTINGS, type CitationStyle, type HighlightColor, type Settings } from '@/src/core/types';
+import { DEFAULT_SETTINGS, type CitationStyle, type Settings } from '@/src/core/types';
+import { colorHex, DEFAULT_PALETTE, normalizePalette } from '@/src/core/colors';
 import { clearAllData } from '@/src/projects/data';
 import { t, type StringKey } from '@/src/projects/strings';
 import { UiProvider, errText, useUi } from '@/src/ui/components';
 import { Icon } from '@/src/ui/icons';
 
 const STYLES: CitationStyle[] = ['gost', 'apa', 'mla'];
-const COLORS: HighlightColor[] = ['yellow', 'green', 'blue', 'pink', 'purple'];
 
 /** Parse a number input; keep `fallback` when empty/invalid, clamp to [min, max]. */
 const num = (v: string, fallback: number, min: number, max: number) => {
@@ -113,16 +113,11 @@ function Page() {
       </Section>
 
       <Section title={t('optHlTitle')} text={t('optHlText')}>
-        <div class="color-row" role="radiogroup" aria-label={t('highlightColor')}>
-          {COLORS.map((c) => (
-            <button key={c} type="button" role="radio" aria-checked={s.highlightColor === c}
-              class={`color-pick ${s.highlightColor === c ? 'on' : ''}`} title={t(`color_${c}` as StringKey)}
-              onClick={() => save({ ...s, highlightColor: c })}>
-              <span class={`dot ${c}`} />
-              {s.highlightColor === c && <Icon name="check" size={12} stroke={2.4} />}
-            </button>
-          ))}
-        </div>
+        <PaletteEditor
+          colors={s.highlightPalette}
+          main={colorHex(s.highlightColor)}
+          onChange={(colors, main) => save({ ...s, highlightPalette: colors, highlightColor: main })}
+        />
       </Section>
 
       <Section title={t('optDataTitle')} text={t('optDataText')}>
@@ -133,3 +128,44 @@ function Page() {
 }
 
 render(<UiProvider><Page /></UiProvider>, document.getElementById('app')!);
+
+/** Palette editor: click = make main, × = remove (keeps at least one), + = add via the native color picker. */
+function PaletteEditor(p: { colors: string[]; main: string; onChange: (colors: string[], main: string) => void }) {
+  const colors = normalizePalette(p.colors);
+  const main = colors.includes(p.main) ? p.main : colors[0]!;
+  const add = (hex: string) => {
+    const c = colorHex(hex);
+    if (!colors.includes(c)) p.onChange([...colors, c], main);
+  };
+  const remove = (c: string) => {
+    if (colors.length <= 1) return;
+    const next = colors.filter((x) => x !== c);
+    p.onChange(next, c === main ? next[0]! : main);
+  };
+  return (
+    <div>
+      <div class="palette">
+        {colors.map((c) => (
+          <div key={c} class={`swatch ${c === main ? 'on' : ''}`}>
+            <button type="button" class="swatch-dot" style={{ background: c }} title={t('makeDefault')}
+              aria-pressed={c === main} onClick={() => p.onChange(colors, c)}>
+              {c === main && <Icon name="check" size={14} stroke={2.6} />}
+            </button>
+            {colors.length > 1 && (
+              <button type="button" class="swatch-x" title={t('removeColor')} aria-label={t('removeColor')} onClick={() => remove(c)}>
+                <Icon name="x" size={10} stroke={2.6} />
+              </button>
+            )}
+            <span class="swatch-label">{c === main ? t('defaultColor') : ''}</span>
+          </div>
+        ))}
+        <label class="swatch add" title={t('addColor')}>
+          <span class="swatch-dot"><Icon name="plus" size={16} /></span>
+          <input type="color" class="sr-only" aria-label={t('addColor')} onChange={(e) => add(e.currentTarget.value)} />
+          <span class="swatch-label" />
+        </label>
+      </div>
+      <button type="button" class="btn ghost sm" onClick={() => p.onChange([...DEFAULT_PALETTE], DEFAULT_PALETTE[0]!)}>{t('resetPalette')}</button>
+    </div>
+  );
+}

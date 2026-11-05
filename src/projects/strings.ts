@@ -10,7 +10,7 @@ const keys = [
   // options
   'settings', 'obsidianFrontmatter', 'obsidianWikilinks', 'crawlDelay', 'crawlMaxPages', 'downloadImages',
   'highlightColor', 'saved', 'dangerZone', 'deleteAll', 'confirmDeleteAll', 'deletedAll', 'defaultProject',
-  'none', 'openInLibrary', 'openSource', 'dragToReorder', 'goToHighlight', 'noClipsTitle', 'noClipsText', 'noHlTitle', 'noHlText', 'bibExplain', 'bibStyleLabel', 'change', 'renameProject', 'optBibTitle', 'optBibText', 'styleGostDesc', 'styleApaDesc', 'styleMlaDesc', 'optExportTitle', 'optExportText', 'obsidianNote', 'optCrawlTitle', 'optCrawlText', 'crawlDelayHelp', 'crawlMaxHelp', 'optHlTitle', 'optHlText', 'optDataTitle', 'optDataText', 'deleteAllConfirmLabel', 'justNow', 'minAgo', 'hourAgo', 'yesterday', 'daysAgo', 'color_yellow', 'color_green', 'color_blue', 'color_pink', 'color_purple', 'ms',
+  'none', 'openInLibrary', 'openSource', 'dragToReorder', 'goToHighlight', 'noClipsTitle', 'noClipsText', 'noHlTitle', 'noHlText', 'bibExplain', 'bibStyleLabel', 'change', 'renameProject', 'optBibTitle', 'optBibText', 'styleGostDesc', 'styleApaDesc', 'styleMlaDesc', 'optExportTitle', 'optExportText', 'obsidianNote', 'optCrawlTitle', 'optCrawlText', 'crawlDelayHelp', 'crawlMaxHelp', 'optHlTitle', 'optHlText', 'optDataTitle', 'optDataText', 'deleteAllConfirmLabel', 'justNow', 'minAgo', 'hourAgo', 'yesterday', 'daysAgo', 'color_yellow', 'color_green', 'color_blue', 'color_pink', 'color_purple', 'ms', 'addColor', 'removeColor', 'makeDefault', 'defaultColor', 'resetPalette',
 ] as const;
 export type StringKey = (typeof keys)[number];
 
@@ -62,7 +62,8 @@ export const dict: Dict<StringKey> = {
     crawlDelayHelp: 'Пауза между запросами (не меньше 1000 мс).',
     crawlMaxHelp: 'Остановиться, когда скачано столько страниц.',
     optHlTitle: 'Хайлайты',
-    optHlText: 'Цвет, которым выделяется текст по умолчанию.',
+    optHlText: 'Когда вы выделяете текст, под ним появляется пузырь: основной цвет и стрелка › — по ней открываются остальные. Нажмите на цвет, чтобы сделать его основным; × — убрать; + — добавить любой.',
+    addColor: 'Добавить цвет', removeColor: 'Убрать цвет', makeDefault: 'Сделать основным', defaultColor: 'основной', resetPalette: 'Вернуть стандартные',
     optDataTitle: 'Данные',
     optDataText: 'Всё хранится только в вашем браузере.',
     deleteAllConfirmLabel: 'Удалить всё',
@@ -115,7 +116,8 @@ export const dict: Dict<StringKey> = {
     crawlDelayHelp: 'Pause between requests (at least 1000 ms).',
     crawlMaxHelp: 'Stop after this many pages.',
     optHlTitle: 'Highlights',
-    optHlText: 'The color used for new highlights by default.',
+    optHlText: 'When you select text, a bubble appears under it: the main color and an arrow › that opens the rest. Click a color to make it the main one; × removes it; + adds any color.',
+    addColor: 'Add color', removeColor: 'Remove color', makeDefault: 'Make main color', defaultColor: 'main', resetPalette: 'Reset to defaults',
     optDataTitle: 'Data',
     optDataText: 'Everything is stored only in your browser.',
     deleteAllConfirmLabel: 'Delete everything',

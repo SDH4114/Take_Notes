@@ -27,6 +27,6 @@ export default defineBackground(() => {
     ...setupYoutubeBackground(),
   }, {
     // The only messages content scripts send; highlight handlers additionally check the sender's page URL.
-    allowFromWebPages: ['highlight/save', 'highlight/delete', 'highlight/listForUrl'],
+    allowFromWebPages: ['highlight/save', 'highlight/delete', 'highlight/listForUrl', 'highlight/palette'],
   });
 });

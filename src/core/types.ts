@@ -2,7 +2,8 @@
 
 export type CitationStyle = 'gost' | 'apa' | 'mla';
 export type ClipKind = 'page' | 'selection' | 'transcript' | 'chapter';
-export type HighlightColor = 'yellow' | 'green' | 'blue' | 'pink' | 'purple';
+/** "#rrggbb" (v0.3+) or a legacy name ('yellow'|'green'|'blue'|'pink'|'purple'). Always read via colorHex(). */
+export type HighlightColor = string;
 export type ExportFormat = 'md' | 'md-zip' | 'md-folder-zip' | 'pdf' | 'anki-tsv';
 
 /** Bibliographic metadata of a web source. Dates are ISO 8601 strings. */
@@ -134,7 +135,10 @@ export interface Settings {
   crawl: { delayMs: number; maxPages: number };
   /** Download images into zip exports (true) or keep remote links (false). */
   downloadImages: boolean;
+  /** Default (one-click) highlight color. */
   highlightColor: HighlightColor;
+  /** User palette shown in the selection toolbar; edited in Settings. */
+  highlightPalette: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -143,5 +147,6 @@ export const DEFAULT_SETTINGS: Settings = {
   obsidian: { frontmatter: true, wikilinks: true },
   crawl: { delayMs: 1500, maxPages: 300 },
   downloadImages: true,
-  highlightColor: 'yellow',
+  highlightColor: '#facc15',
+  highlightPalette: ['#facc15', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa'],
 };

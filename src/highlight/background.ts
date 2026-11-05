@@ -4,6 +4,7 @@ import { broadcast, isFromWebPage, sendToTab, type BackgroundMessages, type Hand
 import { highlights, settings } from '@/src/core/storage';
 import type { Highlight } from '@/src/core/types';
 import { normalizeUrl, nowIso } from '@/src/core/util';
+import { colorHex, orderedPalette } from '@/src/core/colors';
 import { t } from './strings';
 
 const MENU_SELECTION = 'tn-hl-selection';
@@ -136,6 +137,11 @@ export function createHighlightHandlers(): Handlers<BackgroundMessages> {
     },
 
     'highlight/open': ({ id }) => openHighlight(id),
+
+    'highlight/palette': async () => {
+      const s = await settings.get();
+      return { colors: orderedPalette(s.highlightPalette, s.highlightColor), defaultColor: colorHex(s.highlightColor) };
+    },
 
     'highlight/delete': async ({ id }, sender) => {
       const page = senderPage(sender);

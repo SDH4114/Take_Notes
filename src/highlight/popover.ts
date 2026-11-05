@@ -1,6 +1,6 @@
 // Floating popover for an existing highlight (plain DOM inside a closed-style Shadow DOM). Owner: agent C.
 import type { HighlightColor } from '@/src/core/types';
-import { COLORS, SWATCH } from './render';
+import { colorHex } from '@/src/core/colors';
 import { t } from './strings';
 import { isTrustedEvent, shadowMode } from '@/src/core/dom-guard';
 
@@ -41,6 +41,8 @@ export interface PopoverOptions {
   color: HighlightColor;
   note: string;
   text: string;
+  /** User palette (hex); the mark's current color is added if it's not in it. */
+  palette?: string[];
   onColor(color: HighlightColor): void;
   onNote(note: string): void;
   onDelete(): void;
@@ -60,12 +62,15 @@ export function openPopover(o: PopoverOptions): () => void {
 
   const swatches = document.createElement('div');
   swatches.className = 'row';
-  for (const c of COLORS) {
+  const current = colorHex(o.color);
+  const colors = [...(o.palette ?? [current])].map(colorHex);
+  if (!colors.includes(current)) colors.unshift(current);
+  for (const c of colors) {
     const b = document.createElement('button');
-    b.className = `sw${c === o.color ? ' active' : ''}`;
+    b.className = `sw${c === current ? ' active' : ''}`;
     b.dataset.color = c;
-    b.title = t(c);
-    b.style.background = SWATCH[c];
+    b.title = c;
+    b.style.background = c;
     b.addEventListener('click', (e) => {
       if (!isTrustedEvent(e)) return;
       o.color = c;

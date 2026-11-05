@@ -7,6 +7,7 @@ import { Icon } from '@/src/ui/icons';
 import { ut } from '@/src/ui/strings';
 import { clipIcon, moveId, relativeDate, snippet } from './logic';
 import { lt } from './strings';
+import { colorHex } from '@/src/core/colors';
 
 /** Focusable list: Up/Down move the selection, Delete asks to delete it. */
 export function ListBox(p: {
@@ -110,7 +111,7 @@ export function HighlightList(p: {
       onDelete={(id) => { const h = p.items.find((x) => x.id === id); if (h) p.onDelete(h); }}>
       {p.items.map((h) => (
         <div key={h.id} class={`item hl-item ${h.id === p.selected ? 'selected' : ''}`} onClick={() => p.onSelect(h.id)}>
-          <span class="hl-bar" style={{ background: `var(--hl-${h.color})` }} />
+          <span class="hl-bar" style={{ background: colorHex(h.color) }} />
           <div class="item-main">
             <div class="item-text">{h.text}</div>
             {h.note && <div class="item-note italic">{h.note}</div>}

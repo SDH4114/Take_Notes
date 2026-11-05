@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openPopover } from '@/src/highlight/popover';
-import { createSelectionToolbar } from '@/src/highlight/toolbar';
+import { centeredPosition, createSelectionToolbar } from '@/src/highlight/toolbar';
+
+const PALETTE = ['#facc15', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa'];
 
 const html = (s: string) => { document.body.innerHTML = s; };
 const shadowOf = (sel: string) => (document.querySelector(sel) as HTMLElement).shadowRoot!;
@@ -16,7 +18,8 @@ function selectText(el: Element): void {
 describe('openPopover', () => {
   const base = () => ({
     mark: document.querySelector('mark') as HTMLElement,
-    color: 'blue' as const,
+    color: 'blue',
+    palette: PALETTE,
     note: 'old',
     text: 'quoted',
     onColor: vi.fn(),
@@ -31,7 +34,7 @@ describe('openPopover', () => {
     const root = shadowOf('#tn-popover-host');
     expect(root.querySelectorAll('button.sw')).toHaveLength(5);
     expect((root.querySelector('textarea') as HTMLTextAreaElement).value).toBe('old');
-    expect(root.querySelector('button.sw.active')!.getAttribute('data-color')).toBe('blue');
+    expect(root.querySelector('button.sw.active')!.getAttribute('data-color')).toBe('#60a5fa'); // legacy name → hex
     expect(document.body.querySelector('#tn-popover-host textarea')).toBeNull();
   });
 
@@ -39,8 +42,8 @@ describe('openPopover', () => {
     const o = base();
     openPopover(o);
     const root = shadowOf('#tn-popover-host');
-    (root.querySelector('button.sw[data-color="pink"]') as HTMLElement).click();
-    expect(o.onColor).toHaveBeenCalledWith('pink');
+    (root.querySelector('button.sw[data-color="#f472b6"]') as HTMLElement).click();
+    expect(o.onColor).toHaveBeenCalledWith('#f472b6');
     (root.querySelector('button.del') as HTMLElement).click();
     expect(o.onDelete).toHaveBeenCalled();
     expect(document.querySelector('#tn-popover-host')).toBeNull();
@@ -125,24 +128,49 @@ describe('createSelectionToolbar', () => {
   });
   afterEach(() => { toolbar.destroy(); vi.useRealTimers(); window.getSelection()!.removeAllRanges(); });
 
-  it('shows five color dots near a fresh selection and picks a color', () => {
+  const showBubble = async () => {
     selectText(document.getElementById('p')!);
     document.dispatchEvent(new MouseEvent('mouseup'));
     vi.advanceTimersByTime(100);
+    await Promise.resolve(); await Promise.resolve(); // palette promise
+  };
+
+  it('collapsed: main color + arrow; arrow expands the rest; picking calls onPick', async () => {
+    toolbar.destroy();
+    toolbar = createSelectionToolbar(onPick, async () => ({ colors: PALETTE, defaultColor: '#facc15' }));
+    await showBubble();
     expect(shown()).toBe(true);
-    const dots = host()!.shadowRoot!.querySelectorAll<HTMLElement>('button.dot');
-    expect(dots).toHaveLength(5);
-    dots[2]!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-    dots[2]!.click();
-    expect(onPick).toHaveBeenCalledWith('blue');
+    const root = host()!.shadowRoot!;
+    const bar = root.querySelector('.bar')!;
+    expect(root.querySelectorAll('.bar > button.sw')).toHaveLength(1);
+    expect(root.querySelectorAll('.rest button.sw')).toHaveLength(4);
+    expect(bar.classList.contains('open')).toBe(false);
+    const more = root.querySelector('button.more') as HTMLElement;
+    more.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, composed: true }));
+    more.click();
+    vi.advanceTimersByTime(100); // a mouseup inside the bubble must not re-run update() and collapse it
+    expect(bar.classList.contains('open')).toBe(true);
+    (root.querySelectorAll('.rest button.sw')[1] as HTMLElement).click();
+    expect(onPick).toHaveBeenCalledWith('#60a5fa');
     expect(shown()).toBe(false);
   });
+
+  it('a single-color palette shows no arrow', async () => {
+    toolbar.destroy();
+    toolbar = createSelectionToolbar(onPick, async () => ({ colors: ['#ff0000'], defaultColor: '#ff0000' }));
+    await showBubble();
+    const root = host()!.shadowRoot!;
+    expect(root.querySelector('button.more')).toBeNull();
+    (root.querySelector('button.sw') as HTMLElement).click();
+    expect(onPick).toHaveBeenCalledWith('#ff0000');
+  });
+
 
   it('prevents default on mousedown so the selection is kept', () => {
     selectText(document.getElementById('p')!);
     document.dispatchEvent(new MouseEvent('mouseup'));
     vi.advanceTimersByTime(100);
-    const dot = host()!.shadowRoot!.querySelector('button.dot')!;
+    const dot = host()!.shadowRoot!.querySelector('button.sw')!;
     const ev = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
     dot.dispatchEvent(ev);
     expect(ev.defaultPrevented).toBe(true);
@@ -188,5 +216,16 @@ describe('createSelectionToolbar', () => {
     vi.advanceTimersByTime(100);
     toolbar.destroy();
     expect(host()).toBeNull();
+  });
+});
+
+describe('centeredPosition', () => {
+  const view = { width: 1000, scrollX: 0, scrollY: 500 };
+  it('centers under the selection, 8px below', () => {
+    expect(centeredPosition({ left: 400, right: 600, bottom: 100 }, 100, view)).toEqual({ left: 450, top: 608 });
+  });
+  it('clamps to the viewport edges', () => {
+    expect(centeredPosition({ left: 0, right: 20, bottom: 10 }, 100, view).left).toBe(6);
+    expect(centeredPosition({ left: 980, right: 1000, bottom: 10 }, 100, view).left).toBe(894);
   });
 });
