@@ -1,0 +1,73 @@
+import type { Dict } from '@/src/core/i18n';
+
+export const strings = {
+  ru: {
+    contents: 'Содержание',
+    source: 'Источник',
+    accessed: 'дата обращения',
+    pageTitle: 'Сохранить раздел как книгу',
+    copyright: 'Материалы сайта защищены авторским правом; сохраняйте для личной учёбы.',
+    bookTitle: 'Название книги',
+    chapters: 'Главы',
+    selected: 'Выбрано {n} из {total}',
+    selectAll: 'Выбрать все',
+    selectNone: 'Снять все',
+    pickManual: 'Выбрать меню вручную',
+    detecting: 'Ищу оглавление…',
+    nothingFound: 'Оглавление не найдено. Выберите меню вручную.',
+    download: 'Скачать',
+    stop: 'Остановить',
+    progress: '{done} из {total}',
+    errors: 'Ошибки ({n})',
+    done: 'Готово',
+    stopped: 'Остановлено',
+    failed: 'Не удалось сохранить ни одной главы',
+    exportPdf: 'PDF',
+    exportMd: 'Markdown',
+    exportZip: 'Папка .md (zip)',
+    saved: 'Сохранённые книги',
+    noBooks: 'Пока нет сохранённых книг.',
+    del: 'Удалить',
+    confirmDelete: 'Удалить книгу «{title}»?',
+    noTab: 'Страница не указана: откройте краулер из меню расширения на нужной странице.',
+    pickHint: 'Кликните по меню на странице (Esc — отмена).',
+  },
+  en: {
+    contents: 'Contents',
+    source: 'Source',
+    accessed: 'accessed',
+    pageTitle: 'Save a section as a book',
+    copyright: 'Site content is protected by copyright; save it for personal study only.',
+    bookTitle: 'Book title',
+    chapters: 'Chapters',
+    selected: '{n} of {total} selected',
+    selectAll: 'Select all',
+    selectNone: 'Select none',
+    pickManual: 'Pick menu manually',
+    detecting: 'Looking for the table of contents…',
+    nothingFound: 'No table of contents found. Pick the menu manually.',
+    download: 'Download',
+    stop: 'Stop',
+    progress: '{done} of {total}',
+    errors: 'Errors ({n})',
+    done: 'Done',
+    stopped: 'Stopped',
+    failed: 'Could not save any chapter',
+    exportPdf: 'PDF',
+    exportMd: 'Markdown',
+    exportZip: '.md folder (zip)',
+    saved: 'Saved books',
+    noBooks: 'No saved books yet.',
+    del: 'Delete',
+    confirmDelete: 'Delete the book "{title}"?',
+    noTab: 'No page given: open the crawler from the extension menu on the page you want.',
+    pickHint: 'Click the menu on the page (Esc to cancel).',
+  },
+} satisfies Dict<
+  | 'contents' | 'source' | 'accessed' | 'pageTitle' | 'copyright' | 'bookTitle' | 'chapters' | 'selected'
+  | 'selectAll' | 'selectNone' | 'pickManual' | 'detecting' | 'nothingFound' | 'download' | 'stop'
+  | 'progress' | 'errors' | 'done' | 'stopped' | 'failed' | 'exportPdf' | 'exportMd' | 'exportZip'
+  | 'saved' | 'noBooks' | 'del' | 'confirmDelete' | 'noTab' | 'pickHint'
+>;
+
+export type StringKey = keyof typeof strings.en;
