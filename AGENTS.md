@@ -13,22 +13,23 @@ Firefox extension for school and university students: turn web pages into study 
 AI features are deferred.
 
 ## Status
-Prototype v0.1.0: all modules implemented and merged, 283 unit tests pass, build + web-ext lint (0 errors) clean.
-Not yet run in a real Firefox — next step is a manual pass (see README) and fixing what breaks.
-Known gaps: popup "export .md/PDF" also saves a clip; book chapters keep remote images in PDF; math in PDF is TeX text;
-`src/crawl/book.ts bookToMarkdown` duplicates the shipped `src/export/document.ts bookToMarkdownExport` (only tests use it).
+Prototype v0.2.0: UI/UX redesign done — Library tab with Markdown editor, new popup/sidebar/options/crawler, jump-to-highlight.
+365 unit tests, build + web-ext lint (0 errors) clean. Tested by Haos in Zen (Firefox-based) at v0.1; v0.2 not yet run in a browser.
+Known gaps: book chapters keep remote images in PDF; math in PDF is TeX text; `src/crawl/book.ts bookToMarkdown`
+duplicates `src/export/document.ts bookToMarkdownExport` (only tests use it); Library loads full books to count chapters.
 
 ## Stack
-TypeScript, WXT 0.21 (Vite), Manifest V3 for Firefox (background = event page with DOM), Preact, IndexedDB via `idb`, `@mozilla/readability`, `turndown` + `turndown-plugin-gfm`, `dompurify`, `fflate`. Tests: Vitest + jsdom (+ `fake-indexeddb`). npm.
+TypeScript, WXT 0.21 (Vite), Manifest V3 for Firefox (background = event page with DOM), Preact, IndexedDB via `idb`, `@mozilla/readability`, `turndown` + `turndown-plugin-gfm`, `dompurify`, `fflate`. CodeMirror 6 (editor), `marked` (preview). Tests: Vitest + jsdom (+ `fake-indexeddb`). npm.
 
 ## Structure
 - `entrypoints/background.ts` — merges handler maps from every module's `setup*Background()`.
 - `entrypoints/content.ts` — merges `setup*Content()` handlers; runs on `<all_urls>`.
-- `entrypoints/{popup,sidepanel,options,crawler,print}/` — Preact pages (`sidepanel` → Firefox `sidebar_action`).
+- `entrypoints/{popup,sidepanel,options,crawler,print,library}/` — Preact pages (`sidepanel` → Firefox `sidebar_action`; `library` = full-tab workspace, opened via `openLibrary({project, clip, view})`).
+- `src/library/` — Library app (App, Nav, Lists, ClipPane, Panes), `format.ts` (pure Markdown formatting commands), `logic.ts`.
+- `src/ui/` — shared kit: `base.css` (tokens + classes), `icons.tsx`, `components.tsx` (UiProvider toast/prompt/confirm, Menu, ProjectPicker, ExportMenu, openLibrary), `markdown.ts` (renderMarkdown: GFM + ==mark== + $math$, sanitized), `editor.tsx` (CodeMirror MarkdownEditor).
 - `src/core/` — `types.ts` (data model), `messages.ts` (typed message contract + sender allowlist), `storage.ts` (IndexedDB), `i18n.ts`, `util.ts`, `dom-guard.ts` (isTrusted / closed shadow for page UI).
 - `src/cite/` — source metadata + GOST/APA/MLA formatting. `src/markdown/` — HTML→MD (Turndown).
 - `src/<module>/` — `extract`, `projects`, `highlight`, `crawl`, `export`, `youtube`; each has `background.ts` / `content.ts` setup functions and its own `strings.ts`.
-- `src/ui/base.css` — shared styles (light/dark).
 - `tests/` — unit tests + `tests/fixtures/` HTML.
 
 ## Architecture
@@ -53,6 +54,9 @@ Content script extracts/anchors on the page and answers `ContentMessages`. Backg
 - Context menus are created only in `entrypoints/background.ts` (`removeAll` then each module's `create*Menus()`).
 
 ## Decisions
+- UX: Library tab is the main workspace (edit there); sidebar is compact (list, preview, jump); popup = save + quick export.
+- Bibliography style lives in Settings only; sidebar shows a collapsed "Список литературы". Anki only inside ExportMenu with explanation (users found GOST/APA/MLA and Anki buttons confusing).
+- Editing markdown re-renders `clip.html` in `clip/update` (PDF uses html).
 - WXT over hand-rolled Vite config: multi-entry build, Firefox manifest, dev runner out of the box.
 - Local-only (IndexedDB), no server/accounts: privacy, zero cost.
 - PDF via `tabs.saveAsPDF` on our own print page instead of a JS PDF library: real text, small bundle (Firefox-only API).
@@ -60,6 +64,8 @@ Content script extracts/anchors on the page and answers `ContentMessages`. Backg
 - Crawler limited to same origin + path prefix, 1 request at a time, delay ≥1 s, max pages setting.
 
 ## Gotchas
+- Library editor keeps its own draft; `data/changed` refreshes must not reset the clip being edited. Autosave merges onto the stored clip.
+- Firefox may intercept some editor shortcuts (Ctrl/Cmd+N, K, E); toolbar buttons always work.
 - Tests run with `tests/setup.ts` → `relaxDomGuardForTests()` (jsdom events are never trusted, shadow roots must be open for tests).
 - Handler tests must pass an extension-page sender (`{ url: browser.runtime.getURL('/x.html') }`); an empty sender counts as a web page.
 - Wikipedia (2025+) serves native MathML; TeX is in `data-mw` JSON `body.extsrc` (`src/extract/math.ts`).

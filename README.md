@@ -28,6 +28,7 @@ npm run typecheck
 - **Popup** (toolbar button): choose the active project, save the page or selection, export to .md / PDF, save a documentation section, save a YouTube transcript.
 - **Hotkeys**: `Alt+Shift+S` save selection, `Alt+Shift+P` save page. **Context menu**: save selection/page, highlight.
 - **Highlights**: select text → pick a color in the small toolbar; click a highlight to add a note or delete it.
-- **Sidebar** (View → Sidebar → TakeNotes): projects, clips (reorder, notes, sections), highlights, bibliography (GOST / APA / MLA), export (MD, MD + images zip, PDF, Anki TSV).
+- **Library** (popup → library icon): full-tab workspace — projects, notes, highlights, books, Markdown editor with toolbar (bold, italic, highlight `==text==`, headings, lists, code, links) and live preview.
+- **Sidebar** (View → Sidebar → TakeNotes): compact list of notes and highlights; click a highlight to jump to it on the page; bibliography and export at the bottom.
 - **Documentation section**: on e.g. `https://metanit.com/rust/tutorial/` open the popup → "Download docs section", review the chapter list, download, then export as PDF / one .md / folder of .md. Keep that tab open while it downloads. Saved material is for personal study.
 - **Settings**: `about:addons` → TakeNotes → Preferences.
