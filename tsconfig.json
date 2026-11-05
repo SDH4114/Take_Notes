@@ -5,5 +5,10 @@
     "jsxImportSource": "preact",
     "strict": true,
     "noUncheckedIndexedAccess": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    ".output",
+    ".claude"
+  ]
 }
