@@ -91,4 +91,10 @@ describe('htmlToMarkdown', () => {
     expect(md).not.toMatch(/a\n{3,}b/);
     expect(md).toContain('x\n\n\n\ny');
   });
+  it('escapes "<" in page text so it cannot become raw HTML', () => {
+    const md = htmlToMarkdown('<p>&lt;img src=x onerror=alert(1)&gt; and a &lt; b</p><pre><code>if a < b {}</code></pre>', 'https://x.test/');
+    expect(md).not.toContain('<img');
+    expect(md).toContain('&lt;img src=x');
+    expect(md).toContain('if a < b {}'); // code stays verbatim
+  });
 });

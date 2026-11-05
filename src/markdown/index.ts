@@ -83,6 +83,9 @@ function simpleHtmlTable(table: Element): string {
 function createService(baseUrl: string): TurndownService {
   const td = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
   td.use(gfm);
+  // Text like "<img onerror=…>" on a page must stay text in the .md, not become live HTML in a Markdown viewer.
+  const baseEscape = td.escape.bind(td);
+  td.escape = (text: string) => baseEscape(text).replace(/</g, '&lt;');
 
   // The gfm plugin emits a single "~"; double is the portable form.
   td.addRule('tn-strike', {

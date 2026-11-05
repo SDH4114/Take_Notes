@@ -20,7 +20,7 @@ const fakeExtract = (doc: Document, url: string): ExtractResult => ({
   imageUrls: [],
 });
 
-function setup(fetchFn: (url: string) => Promise<Response>, opts: { delayMs?: number; maxPages?: number } = {}) {
+function setup(fetchFn: (url: string) => Promise<Response>, opts: { delayMs?: number; maxPages?: number; rootUrl?: string } = {}) {
   const sleeps: number[] = [];
   const fetched: string[] = [];
   const progress: CrawlProgress[] = [];
@@ -36,7 +36,7 @@ function setup(fetchFn: (url: string) => Promise<Response>, opts: { delayMs?: nu
     sleep: async (ms) => { sleeps.push(ms); },
     extract: fakeExtract,
   };
-  const crawler = new Crawler(deps, { delayMs: opts.delayMs ?? 1000, maxPages: opts.maxPages ?? 100, onProgress: (p) => progress.push(structuredClone(p)) });
+  const crawler = new Crawler(deps, { delayMs: opts.delayMs ?? 1000, maxPages: opts.maxPages ?? 100, rootUrl: opts.rootUrl, onProgress: (p) => progress.push(structuredClone(p)) });
   return { crawler, sleeps, fetched, progress, maxInFlight: () => maxInFlight };
 }
 
@@ -152,5 +152,18 @@ describe('decodeHtml', () => {
   it('defaults to UTF-8 and survives an unknown charset label', () => {
     expect(decodeHtml(new TextEncoder().encode('Привет'), 'text/html')).toBe('Привет');
     expect(decodeHtml(new TextEncoder().encode('Привет'), 'text/html; charset=bogus-9')).toBe('Привет');
+  });
+  it('rejects pages redirected to another origin (e.g. into a local network)', async () => {
+    const s = setup(async (u) => (u.endsWith('2.html') ? resp(html('<h1>intranet</h1>'), { url: 'http://192.168.0.1/admin' }) : resp(html('<h1>ok</h1>'))), { rootUrl: 'https://s.io/d/' });
+    const r = await s.crawler.run([entry(1), entry(2)]);
+    expect(r.pages.map((p) => p.entry.title)).toEqual(['Ch 1']);
+    expect(r.errors[0]?.message).toMatch(/redirected off-site/);
+  });
+
+  it('rejects oversized pages by Content-Length', async () => {
+    const s = setup(async () => resp(html('<h1>big</h1>'), { headers: { 'content-length': String(50 * 1024 * 1024) } }));
+    const r = await s.crawler.run([entry(1)]);
+    expect(r.pages).toEqual([]);
+    expect(r.errors[0]?.message).toMatch(/too large/);
   });
 });

@@ -1,6 +1,6 @@
 // Background part of the highlight module. Owner: agent C.
-import { browser } from 'wxt/browser';
-import { broadcast, sendToTab, type BackgroundMessages, type Handlers } from '@/src/core/messages';
+import { browser, type Browser } from 'wxt/browser';
+import { broadcast, isFromWebPage, sendToTab, type BackgroundMessages, type Handlers } from '@/src/core/messages';
 import { highlights, settings } from '@/src/core/storage';
 import type { Highlight } from '@/src/core/types';
 import { normalizeUrl, nowIso } from '@/src/core/util';
@@ -8,17 +8,28 @@ import { t } from './strings';
 
 const MENU_SELECTION = 'tn-hl-selection';
 
+/** For messages from a web page's content script: the normalized URL of that page; null for extension pages. */
+function senderPage(sender: Browser.runtime.MessageSender | undefined): string | null {
+  if (!isFromWebPage(sender)) return null;
+  return normalizeUrl(sender?.tab?.url ?? sender?.url ?? 'about:blank');
+}
+
 /** Message handlers (exported separately so they can be tested without the extension APIs). */
 export function createHighlightHandlers(): Handlers<BackgroundMessages> {
   return {
-    'highlight/listForUrl': ({ url }) => highlights.listByUrl(normalizeUrl(url)),
+    // A page may only read its own highlights.
+    'highlight/listForUrl': ({ url }, sender) => highlights.listByUrl(senderPage(sender) ?? normalizeUrl(url)),
 
     'highlight/listAll': ({ projectId }) =>
       projectId === undefined ? highlights.listAll() : highlights.listByProject(projectId),
 
-    'highlight/save': async (h) => {
+    'highlight/save': async (h, sender) => {
+      const page = senderPage(sender);
+      if (page && normalizeUrl(h.url) !== page) throw new Error('Highlight URL does not match the page');
       const now = nowIso();
-      const existing = (await highlights.listByUrl(h.url)).find((x) => x.id === h.id);
+      const existing = await highlights.get(h.id);
+      // Never let a save overwrite a highlight that belongs to another page.
+      if (existing && existing.url !== h.url) throw new Error('Highlight id belongs to another page');
       let saved: Highlight;
       if (existing) {
         // Existing highlights keep their creation date and project; only content/color/note change.
@@ -32,7 +43,9 @@ export function createHighlightHandlers(): Handlers<BackgroundMessages> {
       return saved;
     },
 
-    'highlight/delete': async ({ id }) => {
+    'highlight/delete': async ({ id }, sender) => {
+      const page = senderPage(sender);
+      if (page && (await highlights.get(id))?.url !== page) throw new Error('Highlight belongs to another page');
       await highlights.delete(id);
       broadcast('data/changed', { kind: 'highlight' });
     },
@@ -40,10 +53,11 @@ export function createHighlightHandlers(): Handlers<BackgroundMessages> {
 }
 
 /** Called once from entrypoints/background.ts. Register menus/commands here; return message handlers. */
+export function createHighlightMenus(): void {
+  browser.contextMenus.create({ id: MENU_SELECTION, title: t('menuHighlight'), contexts: ['selection'] });
+}
+
 export function setupHighlightBackground(): Handlers<BackgroundMessages> {
-  browser.runtime.onInstalled.addListener(() => {
-    browser.contextMenus.create({ id: MENU_SELECTION, title: t('menuHighlight'), contexts: ['selection'] });
-  });
 
   browser.contextMenus.onClicked.addListener(async (info, tab) => {
     if (info.menuItemId !== MENU_SELECTION || tab?.id == null) return;

@@ -1,4 +1,5 @@
 // Crawler engine: sequential, polite, testable (fetch/sleep/extract are injected).
+import { readBodyCapped, sameOrigin } from '@/src/core/util';
 import type { BookChapter, CrawlProgress, ExtractResult, TocEntry } from '@/src/core/types';
 
 export interface CrawlerDeps {
@@ -11,7 +12,12 @@ export interface CrawlerOptions {
   delayMs: number;
   maxPages: number;
   onProgress?: (p: CrawlProgress) => void;
+  /** When set, pages redirected to another origin are rejected (redirects could point into a local network). */
+  rootUrl?: string;
 }
+
+/** Max HTML size per page. */
+const MAX_PAGE_BYTES = 8 * 1024 * 1024;
 
 export interface CrawledPage {
   entry: TocEntry;
@@ -120,8 +126,9 @@ export class Crawler {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const ct = res.headers.get('content-type');
       if (!isHtmlType(ct)) throw new Error(`skipped: not HTML (${ct})`);
-      const text = decodeHtml(new Uint8Array(await res.arrayBuffer()), ct);
       const finalUrl = res.url || url;
+      if (this.opts.rootUrl && !sameOrigin(finalUrl, this.opts.rootUrl)) throw new Error(`redirected off-site: ${finalUrl}`);
+      const text = decodeHtml(await readBodyCapped(res, MAX_PAGE_BYTES), ct);
       const doc = new DOMParser().parseFromString(text, 'text/html');
       doc.querySelectorAll('base').forEach((b) => b.remove());
       const base = doc.createElement('base');

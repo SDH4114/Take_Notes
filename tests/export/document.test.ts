@@ -7,7 +7,7 @@ vi.mock('@/src/cite', () => ({
 }));
 
 import {
-  bookToFolderFiles, bookToMarkdownExport, clipToMarkdown, highlightsToMd, projectToMarkdown,
+  bookToFolderFiles, bookToMarkdownExport, clipToMarkdown, projectToMarkdown,
   shiftHeadings, yamlScalar,
 } from '@/src/export/document';
 
@@ -152,16 +152,3 @@ describe('book export', () => {
   });
 });
 
-describe('highlightsToMd', () => {
-  it('groups highlights by source page with notes', () => {
-    const h = (id: string, text: string, note?: string, url = 'https://ex.com/a') => ({
-      id, url, color: 'yellow' as const, anchor: { exact: text, prefix: '', suffix: '' }, text, note,
-      source: src({ url }), projectId: null, createdAt: '', updatedAt: '',
-    });
-    const out = highlightsToMd([h('1', 'one', 'my note'), h('2', 'two'), h('3', 'three', undefined, 'https://ex.com/b')], 'en');
-    expect(out).toContain('# Highlights');
-    expect(out).toContain('## [Ownership](https://ex.com/a)');
-    expect(out).toContain('> one\n\nmy note');
-    expect(out.indexOf('> two')).toBeLessThan(out.indexOf('## [Ownership](https://ex.com/b)'));
-  });
-});

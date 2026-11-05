@@ -16,6 +16,8 @@ export interface PdfDeps {
   saveAsPDF?: (settings: Record<string, unknown>) => Promise<string>;
   print(tabId: number): Promise<void>;
   closeTab(tabId: number): Promise<void>;
+  /** Release listeners; safe to call more than once. */
+  dispose?(): void;
 }
 
 export interface PdfOptions { url: string; filename: string; lang?: Lang }
@@ -73,6 +75,7 @@ export function browserPdfDeps(timeoutMs = 90_000): PdfDeps {
 
   const tabsApi = browser.tabs as unknown as { saveAsPDF?: (s: Record<string, unknown>) => Promise<string> };
   return {
+    dispose,
     async openTab(url) {
       const tab = await browser.tabs.create({ url: browser.runtime.getURL(url as never), active: true });
       if (tab.id == null) throw new Error('No tab id');
@@ -99,6 +102,11 @@ export function browserPdfDeps(timeoutMs = 90_000): PdfDeps {
 }
 
 /** Export a subject as PDF through the print page. */
-export function exportPdf(kind: PrintKind, id: string, filename: string, lang: Lang = uiLang()): Promise<void> {
-  return runPdfExport(browserPdfDeps(), { url: printPath(kind, id), filename, lang });
+export async function exportPdf(kind: PrintKind, id: string, filename: string, lang: Lang = uiLang()): Promise<void> {
+  const deps = browserPdfDeps();
+  try {
+    await runPdfExport(deps, { url: printPath(kind, id), filename, lang });
+  } finally {
+    deps.dispose?.(); // also covers a failed openTab, which never reaches closeTab
+  }
 }

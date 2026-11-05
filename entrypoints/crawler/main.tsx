@@ -68,6 +68,15 @@ function App() {
     return () => { offProgress(); offData(); };
   }, [loadBooks]);
 
+  // Firefox suspends an idle MV3 event page; a long crawl lives in the background's memory.
+  // Pinging it while running keeps it awake (keep this tab open during a crawl).
+  const running = progress.state === 'running';
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => { send('crawl/status').catch(() => {}); }, 15_000);
+    return () => clearInterval(timer);
+  }, [running]);
+
   useEffect(() => {
     if (tabId == null) return;
     (async () => {
@@ -121,7 +130,6 @@ function App() {
     await send('book/delete', { id: b.id }).catch((e) => setError(errText(e)));
   };
 
-  const running = progress.state === 'running';
   const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (

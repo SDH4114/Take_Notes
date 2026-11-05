@@ -220,17 +220,3 @@ export function bookToFolderFiles(book: Book, settings: Settings, lang: Lang = u
 
 // ---------- highlights (local fallback; agent C may provide highlightsToMarkdown)
 
-export function highlightsToMd(items: Highlight[], lang: Lang = uiLang()): string {
-  const byUrl = new Map<string, Highlight[]>();
-  for (const h of items) byUrl.set(h.url, [...(byUrl.get(h.url) ?? []), h]);
-  let out = `# ${exportT(lang)('highlights')}\n\n`;
-  for (const list of byUrl.values()) {
-    const s = list[0]!.source;
-    out += `${heading(2, `[${s.title || s.url}](${s.url})`)}\n\n`;
-    for (const h of list) {
-      out += `${h.text.trim().split('\n').map((l) => `> ${l}`.trimEnd()).join('\n')}\n\n`;
-      if (h.note?.trim()) out += `${h.note.trim()}\n\n`;
-    }
-  }
-  return out.trimEnd() + '\n';
-}

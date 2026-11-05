@@ -100,6 +100,12 @@ function App() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
+  // The project picked here is the "active" one: hotkeys, context menu and highlights save into it.
+  const choose = (id: string) => {
+    setSelected(id);
+    void settings.set({ defaultProjectId: id === INBOX ? null : id });
+  };
+
   const project = projects.find((p) => p.id === selected) ?? null;
   const projectId = project ? project.id : null;
   const style = project?.citationStyle ?? inboxStyle;
@@ -124,13 +130,18 @@ function App() {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => onBroadcast('data/changed', () => void load()), [load]);
-  useEffect(() => { void settings.get().then((s) => setInboxStyle(s.citationStyle)); }, []);
+  useEffect(() => {
+    void settings.get().then((s) => {
+      setInboxStyle(s.citationStyle);
+      setSelected(s.defaultProjectId ?? INBOX);
+    });
+  }, []);
 
   const submitForm = () => run(async () => {
     if (!form || !form.name.trim()) return;
     if (form.mode === 'create') {
       const p = await send('project/create', { name: form.name });
-      setSelected(p.id);
+      choose(p.id);
     } else if (project) {
       await send('project/update', { ...project, name: form.name });
     }
@@ -139,7 +150,7 @@ function App() {
 
   const deleteProject = () => run(async () => {
     if (!project || !confirm(t('confirmDeleteProject', { name: project.name }))) return;
-    setSelected(INBOX);
+    choose(INBOX);
     await send('project/delete', { id: project.id });
   });
 
@@ -176,7 +187,7 @@ function App() {
         <select
           class="grow"
           value={selected}
-          onChange={(e) => { setSelected(e.currentTarget.value); setForm(null); }}
+          onChange={(e) => { choose(e.currentTarget.value); setForm(null); }}
         >
           <option value={INBOX}>{t('inbox')}</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

@@ -1,9 +1,11 @@
 // Download images referenced from Markdown and rewrite the links to relative `images/…` paths.
 import { assets } from '@/src/core/storage';
 import type { Asset } from '@/src/core/types';
-import { newId } from '@/src/core/util';
+import { isHttpUrl, newId, readBodyCapped } from '@/src/core/util';
 
 export const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+/** Per-image cap, so one endless response can't exhaust memory before the total check. */
+export const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 export const IMAGE_CONCURRENCY = 4;
 
 export interface LocalizeOptions {
@@ -84,11 +86,13 @@ export async function localizeImages(docs: string[], opts: LocalizeOptions = {})
         data = await bytesOf(asset.data);
       } else {
         if (limitHit) throw new Error('size limit reached');
-        const res = await fetchFn(url);
+        if (!isHttpUrl(url)) throw new Error('not http(s)');
+        // No cookies: images are public page assets; never send the user's session to arbitrary hosts.
+        const res = await fetchFn(url, { credentials: 'omit' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const mime = (res.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
         if (!mime.startsWith('image/')) throw new Error(`not an image: ${mime || 'unknown type'}`);
-        data = new Uint8Array(await res.arrayBuffer());
+        data = (await readBodyCapped(res, Math.min(MAX_IMAGE_BYTES, maxTotalBytes - total))) as Uint8Array<ArrayBuffer>;
         asset = { id: newId(), url, mime, filename: `images/${hashUrl(url)}.${extFor(mime, url)}`, data: new Blob([data], { type: mime }) } satisfies Asset;
       }
       if (total + data.byteLength > maxTotalBytes) {

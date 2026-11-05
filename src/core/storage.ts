@@ -45,10 +45,15 @@ export const projects = {
   async put(p: Project) { await (await db()).put('projects', p); return p; },
   async delete(id: string) {
     const d = await db();
-    const tx = d.transaction(['projects', 'clips'], 'readwrite');
+    const tx = d.transaction(['projects', 'clips', 'highlights'], 'readwrite');
     await tx.objectStore('projects').delete(id);
     const idx = tx.objectStore('clips').index('byProject');
     for (let c = await idx.openCursor(id); c; c = await c.continue()) await c.delete();
+    // Highlights live on their pages: keep them, but move them to Inbox so they stay listable/exportable.
+    const hIdx = tx.objectStore('highlights').index('byProject');
+    for (let c = await hIdx.openCursor(id); c; c = await c.continue()) {
+      await c.update({ ...c.value, projectId: null, _project: INBOX_KEY } as unknown as Highlight);
+    }
     await tx.done;
   },
 };
@@ -86,6 +91,7 @@ export const highlights = {
     return (await (await db()).getAllFromIndex('highlights', 'byProject', pk(projectId))).map(untag);
   },
   async listAll(): Promise<Highlight[]> { return (await (await db()).getAll('highlights')).map(untag); },
+  async get(id: string) { const v = await (await db()).get('highlights', id); return v && untag(v); },
   async put(h: Highlight) { await (await db()).put('highlights', tag(h) as unknown as Highlight); return h; },
   async delete(id: string) { await (await db()).delete('highlights', id); },
 };

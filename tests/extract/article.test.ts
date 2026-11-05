@@ -110,4 +110,10 @@ describe('extractArticle: fallback', () => {
     expect(r.markdown).toBe('');
     expect(r.imageUrls).toEqual([]);
   });
+  it('does not keep TakeNotes highlight marks in the extracted html', () => {
+    const doc = new DOMParser().parseFromString('<html><head><title>T</title></head><body><article><h1>T</h1><p>' + 'Lorem ipsum dolor sit amet. '.repeat(40) + '<mark class="tn-hl tn-hl-yellow" data-tn-id="x">marked</mark> text</p></article></body></html>', 'text/html');
+    const r = extractArticle(doc, 'https://x.test/a');
+    expect(r.html).not.toContain('tn-hl');
+    expect(r.html).toContain('marked text');
+  });
 });

@@ -7,7 +7,7 @@ vi.mock('@/src/core/messages', async (orig) => {
 });
 
 import { broadcast } from '@/src/core/messages';
-import { clips, db, projects, settings } from '@/src/core/storage';
+import { clips, db, highlights, projects, settings } from '@/src/core/storage';
 import type { Clip } from '@/src/core/types';
 import { setupProjectsBackground } from '@/src/projects/background';
 
@@ -33,7 +33,7 @@ const mkClip = (id: string, projectId: string | null, order: number, extra: Part
 
 beforeEach(async () => {
   const d = await db();
-  for (const s of ['projects', 'clips', 'kv'] as const) await d.clear(s);
+  for (const s of ['projects', 'clips', 'kv', 'highlights'] as const) await d.clear(s);
   vi.mocked(broadcast).mockClear();
 });
 
@@ -84,6 +84,17 @@ describe('projects handlers', () => {
     expect((await clips.listByProject(null)).map((c) => c.id)).toEqual(['inbox1']);
     expect((await settings.get()).defaultProjectId).toBeNull();
     expect(broadcast).toHaveBeenCalledWith('data/changed', { kind: 'project' });
+  });
+});
+
+describe('project/delete and highlights', () => {
+  it('moves the project highlights to Inbox instead of orphaning them', async () => {
+    const p = (await call('project/create', { name: 'B' })) as { id: string };
+    const src = { url: 'https://a.example/', title: 'A', authors: [], accessed: '2026-01-01T00:00:00.000Z' };
+    await highlights.put({ id: 'h1', url: 'https://a.example/', color: 'yellow', anchor: { exact: 'x', prefix: '', suffix: '' }, text: 'x', source: src, projectId: p.id, createdAt: '', updatedAt: '' });
+    await call('project/delete', { id: p.id });
+    expect(await highlights.listByProject(p.id)).toEqual([]);
+    expect((await highlights.listByProject(null)).map((h) => [h.id, h.projectId])).toEqual([['h1', null]]);
   });
 });
 

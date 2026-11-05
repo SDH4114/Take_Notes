@@ -2,6 +2,7 @@
 import type { HighlightColor } from '@/src/core/types';
 import { COLORS, SWATCH } from './render';
 import { t } from './strings';
+import { isTrustedEvent, shadowMode } from '@/src/core/dom-guard';
 
 const HOST_ID = 'tn-popover-host';
 const NOTE_DEBOUNCE_MS = 500;
@@ -37,7 +38,7 @@ export function openPopover(o: PopoverOptions): () => void {
   document.getElementById(HOST_ID)?.remove();
   const host = document.createElement('div');
   host.id = HOST_ID;
-  const root = host.attachShadow({ mode: 'open' });
+  const root = host.attachShadow({ mode: shadowMode() });
 
   const style = document.createElement('style');
   style.textContent = STYLE;
@@ -52,7 +53,8 @@ export function openPopover(o: PopoverOptions): () => void {
     b.dataset.color = c;
     b.title = t(c);
     b.style.background = SWATCH[c];
-    b.addEventListener('click', () => {
+    b.addEventListener('click', (e) => {
+      if (!isTrustedEvent(e)) return;
       o.color = c;
       swatches.querySelectorAll('.sw').forEach((x) => x.classList.toggle('active', x === b));
       o.onColor(c);
@@ -74,7 +76,8 @@ export function openPopover(o: PopoverOptions): () => void {
       o.onNote(ta.value);
     }
   };
-  ta.addEventListener('input', () => {
+  ta.addEventListener('input', (e) => {
+    if (!isTrustedEvent(e)) return;
     clearTimeout(timer);
     timer = setTimeout(flush, NOTE_DEBOUNCE_MS);
   });
@@ -84,7 +87,8 @@ export function openPopover(o: PopoverOptions): () => void {
   const copy = document.createElement('button');
   copy.className = 'act copy';
   copy.textContent = t('copy');
-  copy.addEventListener('click', () => {
+  copy.addEventListener('click', (e) => {
+    if (!isTrustedEvent(e)) return;
     navigator.clipboard.writeText(o.text).then(
       () => { copy.textContent = t('copied'); },
       () => { /* clipboard denied: nothing sensible to do in a page popover */ },
@@ -93,7 +97,8 @@ export function openPopover(o: PopoverOptions): () => void {
   const del = document.createElement('button');
   del.className = 'act del';
   del.textContent = t('delete');
-  del.addEventListener('click', () => {
+  del.addEventListener('click', (e) => {
+    if (!isTrustedEvent(e)) return;
     o.onDelete();
     close(false);
   });

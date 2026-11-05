@@ -4,6 +4,7 @@ import type { TocEntry } from '@/src/core/types';
 import { translator } from '@/src/core/i18n';
 import { strings } from './strings';
 import { detectToc, entriesFromContainer } from './toc';
+import { isTrustedEvent, shadowMode } from '@/src/core/dom-guard';
 
 /** Nearest ancestor-or-self that holds at least two links (a menu), or null. */
 export function findLinkContainer(el: Element): Element | null {
@@ -26,7 +27,7 @@ export function pickToc(doc: Document, pageUrl: string): Promise<TocEntry[]> {
   const t = translator(strings);
   const host = doc.createElement('div');
   host.setAttribute('data-tn-picker', '');
-  const shadow = host.attachShadow({ mode: 'open' });
+  const shadow = host.attachShadow({ mode: shadowMode() });
   const style = doc.createElement('style');
   style.textContent = OVERLAY_CSS;
   const box = doc.createElement('div');
@@ -52,6 +53,7 @@ export function pickToc(doc: Document, pageUrl: string): Promise<TocEntry[]> {
       resolve(entries);
     };
     const onOver = (e: Event) => {
+      if (!isTrustedEvent(e)) return;
       const el = targetOf(e);
       hovered = el && findLinkContainer(el);
       if (!hovered) { box.style.display = 'none'; return; }
@@ -59,6 +61,7 @@ export function pickToc(doc: Document, pageUrl: string): Promise<TocEntry[]> {
       Object.assign(box.style, { display: 'block', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
     };
     const onClick = (e: Event) => {
+      if (!isTrustedEvent(e)) return;
       const el = targetOf(e);
       const container = el && findLinkContainer(el);
       e.preventDefault();
@@ -66,6 +69,7 @@ export function pickToc(doc: Document, pageUrl: string): Promise<TocEntry[]> {
       if (container) finish(entriesFromContainer(container, pageUrl));
     };
     const onKey = (e: Event) => {
+      if (!isTrustedEvent(e)) return;
       if ((e as KeyboardEvent).key !== 'Escape') return;
       e.preventDefault();
       e.stopPropagation();

@@ -3,13 +3,14 @@ import { uiLang, type Lang } from '@/src/core/i18n';
 import type { Book, Clip, ExportFormat, Highlight, Project, Settings } from '@/src/core/types';
 import { highlightsToAnkiTsv } from '@/src/highlight/anki';
 import {
-  bookToFolderFiles, bookToMarkdownExport, clipToMarkdown, highlightsToMd, inboxName, projectToMarkdown,
+  bookToFolderFiles, bookToMarkdownExport, clipToMarkdown, inboxName, projectToMarkdown,
 } from './document';
 import { exportFilename, markdownBlob, textBlob } from './download';
 import { localizeImages } from './images';
 import { exportT, type ExportKey } from './strings';
 import { slugifyFilename } from '@/src/core/util';
 import { createZip } from './zip';
+import { highlightsToMarkdown } from '@/src/highlight/markdown';
 
 export interface Artifact {
   filename: string;
@@ -95,6 +96,6 @@ export async function buildHighlightsArtifact(
   const lang = io.lang ?? uiLang();
   if (format !== 'md' && format !== 'anki-tsv') throw unsupported(format, 'whatHighlights', lang);
   if (!items.length) throw new Error(exportT(lang)('errNoHighlights'));
-  if (format === 'md') return { filename: exportFilename(name, 'md'), blob: markdownBlob(highlightsToMd(items, lang)) };
+  if (format === 'md') return { filename: exportFilename(name, 'md'), blob: markdownBlob(highlightsToMarkdown(items)) };
   return { filename: exportFilename(name, 'tsv'), blob: textBlob(highlightsToAnkiTsv(items)) };
 }

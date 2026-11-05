@@ -5,7 +5,7 @@ import {
 } from '@/src/core/messages';
 import * as storage from '@/src/core/storage';
 import type { Book, CrawlProgress, ExtractResult, SourceMeta, TocEntry } from '@/src/core/types';
-import { newId, normalizeUrl, nowIso } from '@/src/core/util';
+import { isHttpUrl, newId, normalizeUrl, nowIso, sameOrigin } from '@/src/core/util';
 import { extractArticle } from '@/src/extract/article';
 import { Crawler, toChapter, type CrawledPage } from './queue';
 
@@ -34,6 +34,7 @@ export function createCrawlHandlers(deps: CrawlBackgroundDeps): {
 } {
   let progress: CrawlProgress = IDLE;
   let crawler: Crawler | null = null;
+  let starting = false;
   let job: Promise<void> = Promise.resolve();
 
   const setProgress = (p: CrawlProgress) => {
@@ -70,10 +71,20 @@ export function createCrawlHandlers(deps: CrawlBackgroundDeps): {
     },
 
     async 'crawl/start'({ title, rootUrl, entries }) {
-      if (crawler) throw new Error('A crawl is already running');
+      if (crawler || starting) throw new Error('A crawl is already running');
       if (entries.length === 0) throw new Error('No chapters selected');
-      const s = (await storage.settings.get()).crawl;
-      const c = new Crawler(deps, { delayMs: s.delayMs, maxPages: s.maxPages, onProgress: setProgress });
+      // Defense in depth: the page-side TOC filter can't be trusted, re-check scope here.
+      const scoped = entries.filter((e) => isHttpUrl(e.url) && sameOrigin(e.url, rootUrl));
+      if (scoped.length === 0) throw new Error('No chapters on this site');
+      starting = true; // set synchronously so two quick clicks can't both pass the guard
+      let s: { delayMs: number; maxPages: number };
+      try {
+        s = (await storage.settings.get()).crawl;
+      } finally {
+        starting = false;
+      }
+      entries = scoped;
+      const c = new Crawler(deps, { delayMs: s.delayMs, maxPages: s.maxPages, onProgress: setProgress, rootUrl });
       crawler = c;
       progress = { state: 'running', done: 0, total: Math.min(entries.length, s.maxPages), errors: [] };
       job = runJob(title, rootUrl, entries, c);

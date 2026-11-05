@@ -1,6 +1,7 @@
 // Rendering of highlights as <mark> wrappers around text nodes. Owner: agent C.
 import type { HighlightColor, TextQuoteAnchor } from '@/src/core/types';
 import { resolveAnchor } from './anchor';
+import { isTrustedEvent } from '@/src/core/dom-guard';
 
 export const COLORS: HighlightColor[] = ['yellow', 'green', 'blue', 'pink', 'purple'];
 /** Swatch colors, also used by the popover/toolbar. */
@@ -102,6 +103,7 @@ export function clearHighlights(): void {
 /** Delegated click listener: cb(id, clickedMark). Returns an uninstall function. */
 export function installMarkClicks(cb: (id: string, mark: HTMLElement) => void): () => void {
   const l = (e: Event) => {
+    if (!isTrustedEvent(e)) return; // page scripts must not open the note popover
     const mark = (e.target as Element | null)?.closest?.('mark.tn-hl[data-tn-id]') as HTMLElement | null;
     if (mark?.dataset.tnId) cb(mark.dataset.tnId, mark);
   };

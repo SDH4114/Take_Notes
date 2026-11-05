@@ -62,14 +62,13 @@ async function saveWithBadge(kind: 'page' | 'selection', tabId?: number): Promis
   }
 }
 
+/** Called from entrypoints/background.ts after contextMenus.removeAll() on install/update. */
+export function createExtractMenus(): void {
+  browser.contextMenus.create({ id: MENU_SELECTION, title: t('menuSelection'), contexts: ['selection'] });
+  browser.contextMenus.create({ id: MENU_PAGE, title: t('menuPage'), contexts: ['page'] });
+}
+
 function registerMenusAndCommands(): void {
-  browser.runtime?.onInstalled?.addListener(() => {
-    void (async () => {
-      await browser.contextMenus.removeAll();
-      browser.contextMenus.create({ id: MENU_SELECTION, title: t('menuSelection'), contexts: ['selection'] });
-      browser.contextMenus.create({ id: MENU_PAGE, title: t('menuPage'), contexts: ['page'] });
-    })().catch((e) => console.error('[TakeNotes] menu setup failed', e));
-  });
 
   browser.contextMenus?.onClicked?.addListener((info, tab) => {
     if (info.menuItemId === MENU_SELECTION) void saveWithBadge('selection', tab?.id);

@@ -9,7 +9,7 @@ export default defineConfig({
     name: '__MSG_extName__',
     description: '__MSG_extDescription__',
     default_locale: 'ru',
-    permissions: ['storage', 'activeTab', 'contextMenus', 'downloads', 'tabs', 'scripting'],
+    permissions: ['storage', 'contextMenus', 'downloads', 'tabs', 'scripting'],
     host_permissions: ['<all_urls>'],
     commands: {
       'tn-save-selection': { suggested_key: { default: 'Alt+Shift+S' }, description: 'Save selection to TakeNotes' },

@@ -76,6 +76,8 @@ function fixCode(root: Element): void {
 function dropNoise(root: Element): void {
   // Wikipedia section edit links ("[править]" / "[edit]") and similar chrome.
   for (const el of Array.from(root.querySelectorAll('.mw-editsection, .mw-editsection-bracket, .mw-cite-backlink, .noprint'))) el.remove();
+  // Our own highlight marks (src/highlight/render.ts) must not leak into saved clips: unwrap, keep the text.
+  for (const mark of Array.from(root.querySelectorAll('mark.tn-hl'))) mark.replaceWith(...Array.from(mark.childNodes));
   // Footnote refs: keep the "[1]" label as plain text.
   for (const sup of Array.from(root.querySelectorAll('sup.reference'))) sup.replaceWith(sup.ownerDocument.createTextNode(sup.textContent ?? ''));
 }

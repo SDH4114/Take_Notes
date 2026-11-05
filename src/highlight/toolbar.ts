@@ -2,6 +2,7 @@
 import type { HighlightColor } from '@/src/core/types';
 import { COLORS, SWATCH } from './render';
 import { t } from './strings';
+import { isTrustedEvent, shadowMode } from '@/src/core/dom-guard';
 
 const HOST_ID = 'tn-toolbar-host';
 const SHOW_DELAY_MS = 60;
@@ -31,7 +32,7 @@ export function createSelectionToolbar(onPick: (color: HighlightColor) => void):
   const host = document.createElement('div');
   host.id = HOST_ID;
   host.style.display = 'none';
-  const root = host.attachShadow({ mode: 'open' });
+  const root = host.attachShadow({ mode: shadowMode() });
   const style = document.createElement('style');
   style.textContent = STYLE;
   const bar = document.createElement('div');
@@ -43,7 +44,8 @@ export function createSelectionToolbar(onPick: (color: HighlightColor) => void):
     b.style.background = SWATCH[c];
     // Keep the page selection alive while clicking the toolbar.
     b.addEventListener('mousedown', (e) => e.preventDefault());
-    b.addEventListener('click', () => {
+    b.addEventListener('click', (e) => {
+      if (!isTrustedEvent(e)) return;
       hide();
       onPick(c);
     });
@@ -51,7 +53,7 @@ export function createSelectionToolbar(onPick: (color: HighlightColor) => void):
   }
   root.append(style, bar);
 
-  function hide(): void { host.style.display = 'none'; }
+  function hide(): void { host.style.display = 'none'; host.remove(); }
 
   function update(): void {
     const sel = window.getSelection();
@@ -79,7 +81,7 @@ export function createSelectionToolbar(onPick: (color: HighlightColor) => void):
   document.addEventListener('mouseup', schedule);
   document.addEventListener('keyup', schedule);
   document.addEventListener('selectionchange', onSelChange);
-  document.body.appendChild(host);
+  // Host is attached lazily in update(): don't advertise the extension on every page.
 
   return {
     destroy() {

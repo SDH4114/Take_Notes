@@ -9,6 +9,8 @@ describe('core util', () => {
   });
   it('slugifyFilename keeps cyrillic and strips illegal chars', () => {
     expect(slugifyFilename('Язык Rust: основы/введение?')).toBe('Язык Rust основы введение');
+    expect(slugifyFilename('A [b] #c ^d')).toBe('A b c d');
+    expect(slugifyFilename('..')).toBe('untitled');
   });
   it('translator substitutes vars and falls back to en', () => {
     const t = translator({ ru: { a: 'Сохранено {n}' }, en: { a: 'Saved {n}' } }, 'ru');

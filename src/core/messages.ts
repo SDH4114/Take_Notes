@@ -1,5 +1,6 @@
 // Typed message contract. Every request type maps to [payload, response].
 import { browser, type Browser } from 'wxt/browser';
+import { translator } from './i18n';
 import type {
   Book, Clip, CrawlProgress, ExportFormat, ExtractResult, Highlight,
   HighlightColor, Project, TocEntry,
@@ -76,10 +77,32 @@ export function send<K extends keyof BackgroundMessages>(
   return unwrap(browser.runtime.sendMessage({ type, payload } satisfies Envelope));
 }
 
-export function sendToTab<K extends keyof ContentMessages>(
+const tErr = translator({
+  ru: { noContent: 'На этой странице TakeNotes не работает (служебная страница браузера, магазин дополнений или просмотр PDF). Откройте обычный сайт.' },
+  en: { noContent: 'TakeNotes cannot work on this page (browser page, add-ons store or PDF viewer). Open a regular website.' },
+});
+
+const NO_RECEIVER = /Receiving end does not exist|Could not establish connection/i;
+
+/**
+ * Send to the content script of a tab. Tabs opened before the extension was installed/reloaded have no
+ * content script yet: inject it once and retry. Privileged pages (about:, AMO, PDF viewer) get a clear error.
+ */
+export async function sendToTab<K extends keyof ContentMessages>(
   tabId: number, type: K, ...[payload]: Payload<ContentMessages, K> extends void ? [] : [Payload<ContentMessages, K>]
 ): Promise<Response<ContentMessages, K>> {
-  return unwrap(browser.tabs.sendMessage(tabId, { type, payload } satisfies Envelope));
+  const msg = { type, payload } satisfies Envelope;
+  try {
+    return await unwrap(browser.tabs.sendMessage(tabId, msg));
+  } catch (e) {
+    if (!(e instanceof Error) || !NO_RECEIVER.test(e.message)) throw e;
+  }
+  try {
+    await browser.scripting.executeScript({ target: { tabId }, files: ['/content-scripts/content.js'] });
+  } catch {
+    throw new Error(tErr('noContent'));
+  }
+  return unwrap(browser.tabs.sendMessage(tabId, msg));
 }
 
 export function broadcast<K extends keyof BroadcastEvents>(type: K, payload: BroadcastEvents[K]): void {
@@ -101,13 +124,33 @@ export type Handlers<M> = {
   [K in keyof M]?: (payload: Payload<M, K>, sender: Browser.runtime.MessageSender) => Promise<Response<M, K>> | Response<M, K>;
 };
 
-/** Register handlers; returns true only for messages this side owns. */
-export function registerHandlers<M>(handlers: Handlers<M>): void {
+/** True when the message comes from a content script in a web page (not from an extension page). */
+export function isFromWebPage(sender: Browser.runtime.MessageSender | undefined): boolean {
+  if (!sender) return false; // direct calls in tests / same-context
+  const ext = browser.runtime.getURL('/');
+  return !(sender.url ?? '').startsWith(ext);
+}
+
+export interface RegisterOptions {
+  /**
+   * Message types that content scripts in web pages may send. Anything else from a web-page context is ignored,
+   * so a bug in page-facing code can't reach destructive operations (delete project, export, crawl…).
+   * Omit on the content-script side (it only receives from the extension itself).
+   */
+  allowFromWebPages?: readonly string[];
+}
+
+/** Register handlers; responds only to messages this side owns. */
+export function registerHandlers<M>(handlers: Handlers<M>, opts: RegisterOptions = {}): void {
+  const allowed = opts.allowFromWebPages ? new Set(opts.allowFromWebPages) : null;
   browser.runtime.onMessage.addListener((msg: unknown, sender) => {
     const m = msg as Envelope;
     if (!m || m.event || typeof m.type !== 'string') return undefined;
     const h = (handlers as Record<string, ((p: unknown, s: unknown) => unknown) | undefined>)[m.type];
     if (!h) return undefined;
+    if (allowed && isFromWebPage(sender) && !allowed.has(m.type)) {
+      return Promise.resolve({ ok: false, error: 'Not allowed from a web page' } as Wire<unknown>);
+    }
     return Promise.resolve()
       .then(() => h(m.payload, sender))
       .then((data) => ({ ok: true, data }) as Wire<unknown>)

@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { browser } from 'wxt/browser';
 import { highlights, settings } from '@/src/core/storage';
 import type { Highlight } from '@/src/core/types';
 import { createHighlightHandlers } from '@/src/highlight/background';
@@ -19,10 +20,11 @@ function hl(over: Partial<Highlight> = {}): Highlight {
   };
 }
 
-const sender = {} as never;
+const sender = { url: browser.runtime.getURL('/sidepanel.html') } as never;
 const h = createHighlightHandlers();
-const call = <K extends keyof typeof h>(k: K, p: Parameters<NonNullable<(typeof h)[K]>>[0]) =>
-  (h[k] as (p: unknown, s: unknown) => Promise<unknown>)(p, sender);
+const call = <K extends keyof typeof h>(k: K, p: Parameters<NonNullable<(typeof h)[K]>>[0], from: unknown = sender) =>
+  (h[k] as (p: unknown, s: unknown) => Promise<unknown>)(p, from);
+const pageSender = (url: string) => ({ url, tab: { id: 1, url } }) as never;
 
 beforeEach(async () => {
   for (const x of await highlights.listAll()) await highlights.delete(x.id);
@@ -76,5 +78,14 @@ describe('highlight background handlers', () => {
     await call('highlight/save', hl());
     await call('highlight/delete', { id: 'h1' });
     expect(await highlights.listAll()).toHaveLength(0);
+  });
+  it('a web page can only touch its own highlights', async () => {
+    await call('highlight/save', hl({ id: 'other', url: 'https://b.example/q' }));
+    const evil = pageSender('https://a.example/p');
+    await expect(call('highlight/save', hl({ id: 'x2', url: 'https://b.example/q' }), evil)).rejects.toThrow();
+    await expect(call('highlight/save', hl({ id: 'other' }), evil)).rejects.toThrow(); // id of another page
+    await expect(call('highlight/delete', { id: 'other' }, evil)).rejects.toThrow();
+    expect(await call('highlight/listForUrl', { url: 'https://b.example/q' }, evil)).toEqual([]);
+    await expect(call('highlight/save', hl({ id: 'mine' }), evil)).resolves.toMatchObject({ id: 'mine' });
   });
 });
