@@ -1,0 +1,8 @@
+.tn-popup { width: 320px; box-sizing: border-box; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.tn-row { display: flex; align-items: center; gap: 8px; }
+.tn-row select { flex: 1; min-width: 0; }
+.tn-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tn-status { font-size: 12px; padding: 4px 2px; word-break: break-word; }
+.tn-status.ok { color: #2e8b57; }
+.tn-status.error { color: #d64545; }
+.tn-status.info { color: var(--muted); }
