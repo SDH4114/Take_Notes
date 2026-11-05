@@ -24,6 +24,18 @@ function annotationTex(root: Element): string {
   return root.querySelector('annotation[encoding="application/x-tex"]')?.textContent ?? '';
 }
 
+/** Parsoid-era Wikipedia (2025+) renders native MathML with the source TeX in data-mw JSON: body.extsrc. */
+function dataMwTex(el: Element): string {
+  const raw = el.getAttribute('data-mw') ?? el.querySelector('[data-mw]')?.getAttribute('data-mw');
+  if (!raw) return '';
+  try {
+    const src = (JSON.parse(raw) as { name?: string; body?: { extsrc?: unknown } }).body?.extsrc;
+    return typeof src === 'string' ? src : '';
+  } catch {
+    return '';
+  }
+}
+
 function replaceWithMarker(el: Element, tex: string, display: boolean): void {
   const clean = cleanTex(tex);
   if (clean) el.replaceWith(makeMarker(el.ownerDocument, clean, display));
@@ -34,7 +46,7 @@ export function replaceMath(root: Element): void {
   // Wikipedia
   for (const el of Array.from(root.querySelectorAll('.mwe-math-element'))) {
     if (!root.contains(el)) continue;
-    const tex = annotationTex(el) || el.querySelector('img[class*="mwe-math-fallback-image"]')?.getAttribute('alt') || '';
+    const tex = annotationTex(el) || dataMwTex(el) || el.querySelector('img[class*="mwe-math-fallback-image"]')?.getAttribute('alt') || '';
     const display = el.classList.contains('mwe-math-element-block') || el.nodeName === 'DIV' || !!el.querySelector('math[display="block"], .mwe-math-fallback-image-display');
     replaceWithMarker(el, tex, display);
   }
@@ -57,6 +69,6 @@ export function replaceMath(root: Element): void {
   // Bare MathML with a TeX annotation
   for (const el of Array.from(root.querySelectorAll('math'))) {
     if (!root.contains(el)) continue;
-    replaceWithMarker(el, annotationTex(el), el.getAttribute('display') === 'block');
+    replaceWithMarker(el, annotationTex(el) || dataMwTex(el), el.getAttribute('display') === 'block');
   }
 }

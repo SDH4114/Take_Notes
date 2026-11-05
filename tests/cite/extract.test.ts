@@ -121,4 +121,17 @@ describe('extractSourceMeta', () => {
     expect(m.lang).toBeUndefined();
     expect(m.description).toBeUndefined();
   });
+  it('handles real Wikipedia metadata (og:title with suffix, collective JSON-LD author)', () => {
+    const ld = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Article', name: 'Теорема Пифагора',
+      author: { '@type': 'Organization', name: 'Contributors to Wikimedia projects' },
+      publisher: { '@type': 'Organization', name: 'Фонд Викимедиа' }, datePublished: '2004-10-16T06:50:41Z' });
+    const d = parse(`<html lang="ru"><head><title>Теорема Пифагора — Википедия</title>
+      <meta property="og:title" content="Теорема Пифагора — Википедия">
+      <script type="application/ld+json">${ld}</script></head><body><h1>Теорема Пифагора</h1></body></html>`);
+    const m = extractSourceMeta(d, 'https://ru.wikipedia.org/wiki/Теорема_Пифагора');
+    expect(m.title).toBe('Теорема Пифагора');
+    expect(m.siteName).toBe('Википедия');
+    expect(m.authors).toEqual([]);
+    expect(m.published).toBe('2004-10-16');
+  });
 });

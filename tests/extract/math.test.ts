@@ -38,4 +38,12 @@ describe('math', () => {
   it('leaves math without recoverable TeX untouched', () => {
     expect(md('<p>a <math><mi>x</mi></math> b</p>')).toContain('a');
   });
+  it('reads TeX from data-mw of Parsoid-era Wikipedia native MathML', () => {
+    const out = md(
+      `<p>Катеты <math xmlns="http://www.w3.org/1998/Math/MathML" class="mwe-math-element mwe-math-element-inline" data-mw='{"name":"math","attrs":{},"body":{"extsrc":"a"}}'><mi>a</mi></math> и формула:</p>` +
+      `<math class="mwe-math-element mwe-math-element-block" display="block" data-mw='{"name":"math","attrs":{"display":"block"},"body":{"extsrc":"c^2 = a^2 + b^2"}}'><mi>c</mi></math>`,
+    );
+    expect(out).toContain('Катеты $a$ и формула:');
+    expect(out).toContain('$$\nc^2 = a^2 + b^2\n$$');
+  });
 });

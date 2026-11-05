@@ -68,6 +68,14 @@ function normalizeDate(raw: string | undefined): string | undefined {
 
 const KNOWN_SITE_SUFFIX = /^(википедия|wikipedia|wikipédia|wikipedia, the free encyclopedia|википедия — свободная энциклопедия)$/i;
 
+/** Trailing " — Site" part of a title, if any. */
+function titleSuffix(title: string): string | undefined {
+  return /^.*\S\s+(?:[—–|·-])\s+([^—–|·]+?)$/.exec(title)?.[1]?.trim();
+}
+
+/** Collective/organizational "authors" that must not appear as a person in citations. */
+const NON_AUTHOR = /^(contributors to wikimedia projects|участники проектов викимедиа|wikipedia contributors|авторы википедии)$/i;
+
 function stripSiteSuffix(title: string, siteName: string | undefined, url: string): string {
   const m = /^(.*\S)\s+(?:[—–|·-])\s+([^—–|·]+?)$/.exec(title);
   if (!m) return title;
@@ -83,14 +91,17 @@ function stripSiteSuffix(title: string, siteName: string | undefined, url: strin
 /** Read bibliographic metadata from a document (citation_*, og:, JSON-LD, <time>, etc.). */
 export function extractSourceMeta(doc: Document, url: string): SourceMeta {
   const ld = readJsonLd(doc);
-  const siteName = meta(doc, 'og:site_name') ?? ld.publisher;
-  const publisher = meta(doc, 'citation_publisher', 'publisher') ?? ld.publisher;
-
   const docTitle = clean(doc.title);
+  // A known site suffix in <title> ("… — Википедия") names the site better than JSON-LD publisher (foundation).
+  const suffix = docTitle ? titleSuffix(docTitle) : undefined;
+  const siteName = meta(doc, 'og:site_name') ?? (suffix && KNOWN_SITE_SUFFIX.test(suffix) ? suffix : undefined) ?? ld.publisher;
+  const publisher = meta(doc, 'citation_publisher', 'publisher') ?? ld.publisher;
+  const strip = (t: string | undefined) => (t ? stripSiteSuffix(t, siteName, url) : undefined);
+
   const title =
     meta(doc, 'citation_title') ??
-    meta(doc, 'og:title') ??
-    ld.headline ??
+    strip(meta(doc, 'og:title')) ??
+    strip(ld.headline) ??
     (clean(doc.querySelector('h1')?.textContent) || undefined) ??
     (docTitle ? stripSiteSuffix(docTitle, siteName, url) : undefined) ??
     url;
@@ -102,7 +113,7 @@ export function extractSourceMeta(doc: Document, url: string): SourceMeta {
     ...ld.authors,
     ...metaAll(doc, ['article:author']),
   ]) {
-    if (!isUrl(a) && !authors.includes(a)) authors.push(a);
+    if (!isUrl(a) && !NON_AUTHOR.test(a) && !authors.includes(a)) authors.push(a);
   }
 
   const published = normalizeDate(
