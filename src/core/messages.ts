@@ -17,6 +17,8 @@ export interface BackgroundMessages {
   'project/update': [Project, Project];
   'project/delete': [{ id: string }, void];
   'clip/list': [{ projectId: string | null }, Clip[]];
+  /** New empty/handwritten note (kind 'selection' with no page source). */
+  'clip/create': [{ projectId: string | null; title: string; markdown?: string }, Clip];
   'clip/update': [Clip, Clip];
   'clip/delete': [{ id: string }, void];
   'clip/reorder': [{ projectId: string | null; ids: string[] }, void];
@@ -25,6 +27,8 @@ export interface BackgroundMessages {
   'highlight/listAll': [{ projectId?: string | null }, Highlight[]];
   'highlight/save': [Highlight, Highlight];
   'highlight/delete': [{ id: string }, void];
+  /** Open (or focus) the highlight's page, scroll to it and flash it. */
+  'highlight/open': [{ id: string }, void];
   // crawler (owner: crawl module)
   'crawl/detectToc': [{ tabId?: number }, TocEntry[]];
   'crawl/start': [{ title: string; rootUrl: string; entries: TocEntry[] }, { started: true }];
@@ -47,6 +51,8 @@ export interface ContentMessages {
   'content/extractSelection': [void, ExtractResult | null];
   'content/highlightSelection': [{ color?: HighlightColor }, Highlight | null];
   'content/refreshHighlights': [void, void];
+  /** Scroll to a rendered highlight and flash it; false if it could not be found on the page. */
+  'content/focusHighlight': [{ id: string }, boolean];
   'content/detectToc': [void, TocEntry[]];
   'content/pickToc': [void, TocEntry[]];
   'content/youtubeTranscript': [void, ExtractResult | null];

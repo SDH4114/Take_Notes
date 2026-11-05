@@ -159,3 +159,15 @@ describe('clip handlers', () => {
     expect((await clips.get('a'))?.order).toBe(0);
   });
 });
+
+describe('clip editing', () => {
+  it('clip/create makes a note and clip/update re-renders html when markdown changes', async () => {
+    const c = (await call('clip/create', { projectId: null, title: 'Note', markdown: '# A' })) as Clip;
+    expect(c.html).toContain('<h1>A</h1>');
+    const u = (await call('clip/update', { ...c, markdown: '**b** ==hl==' })) as Clip;
+    expect(u.html).toContain('<strong>b</strong>');
+    expect(u.html).toContain('<mark>hl</mark>');
+    const same = (await call('clip/update', { ...u, note: 'n' })) as Clip;
+    expect(same.html).toBe(u.html);
+  });
+});

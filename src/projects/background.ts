@@ -3,11 +3,14 @@ import { broadcast, type BackgroundMessages, type Handlers } from '@/src/core/me
 import { clips, projects, settings } from '@/src/core/storage';
 import type { Clip, Project } from '@/src/core/types';
 import { newId, nowIso } from '@/src/core/util';
+import { renderMarkdown } from '@/src/ui/markdown';
 
 async function updateClip(input: Clip): Promise<Clip> {
   const existing = await clips.get(input.id);
   if (!existing) throw new Error(`Clip not found: ${input.id}`);
   const next: Clip = { ...input, updatedAt: nowIso() };
+  // Edited in the editor: the stored html (used for PDF) must follow the markdown.
+  if (input.markdown !== existing.markdown) next.html = renderMarkdown(input.markdown);
   // Moving to another project: append at the end there instead of clashing with its order.
   if (input.projectId !== existing.projectId) next.order = await clips.nextOrder(input.projectId);
   await clips.put(next);
@@ -75,6 +78,17 @@ export function setupProjectsBackground(): Handlers<BackgroundMessages> {
 
     'clip/list': ({ projectId }) => clips.listByProject(projectId),
     'clip/update': updateClip,
+    'clip/create': async ({ projectId, title, markdown = '' }) => {
+      const now = nowIso();
+      const clip: Clip = {
+        id: newId(), projectId, kind: 'selection', title: title.trim() || 'Untitled', html: renderMarkdown(markdown), markdown,
+        source: { url: '', title: title.trim(), authors: [], accessed: now }, tags: [], order: await clips.nextOrder(projectId),
+        assetIds: [], createdAt: now, updatedAt: now,
+      };
+      await clips.put(clip);
+      broadcast('data/changed', { kind: 'clip' });
+      return clip;
+    },
     'clip/delete': async ({ id }) => {
       await clips.delete(id);
       broadcast('data/changed', { kind: 'clip' });
