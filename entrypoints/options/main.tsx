@@ -1,12 +1,15 @@
-// options page. Owner: agent B.
+// Options page: autosaved settings.
 import { render } from 'preact';
+import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import '@/src/ui/base.css';
 import './style.css';
-import { projects as projectsStore, settings as settingsStore } from '@/src/core/storage';
-import { DEFAULT_SETTINGS, type CitationStyle, type HighlightColor, type Project, type Settings } from '@/src/core/types';
+import { settings as settingsStore } from '@/src/core/storage';
+import { DEFAULT_SETTINGS, type CitationStyle, type HighlightColor, type Settings } from '@/src/core/types';
 import { clearAllData } from '@/src/projects/data';
 import { t, type StringKey } from '@/src/projects/strings';
+import { UiProvider, errText, useUi } from '@/src/ui/components';
+import { Icon } from '@/src/ui/icons';
 
 const STYLES: CitationStyle[] = ['gost', 'apa', 'mla'];
 const COLORS: HighlightColor[] = ['yellow', 'green', 'blue', 'pink', 'purple'];
@@ -17,14 +20,31 @@ const num = (v: string, fallback: number, min: number, max: number) => {
   return v.trim() === '' || !Number.isFinite(n) ? fallback : Math.min(max, Math.max(min, n));
 };
 
-function App() {
+function Section(p: { title: string; text?: string; children: ComponentChildren }) {
+  return (
+    <section class="opt-section">
+      <h2>{p.title}</h2>
+      {p.text && <p class="muted">{p.text}</p>}
+      {p.children}
+    </section>
+  );
+}
+
+function Check(p: { checked: boolean; onChange: (v: boolean) => void; label: string; note?: string }) {
+  return (
+    <label class="opt-check">
+      <input type="checkbox" checked={p.checked} onChange={(e) => p.onChange(e.currentTarget.checked)} />
+      <span>{p.label}{p.note && <span class="muted small opt-note">{p.note}</span>}</span>
+    </label>
+  );
+}
+
+function Page() {
+  const ui = useUi();
   const [s, setS] = useState<Settings | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [status, setStatus] = useState('');
 
   useEffect(() => {
-    void settingsStore.get().then(setS);
-    void projectsStore.list().then(setProjects);
+    settingsStore.get().then(setS).catch((e) => ui.toast(errText(e), true));
   }, []);
 
   if (!s) return <div class="page muted">{t('loading')}</div>;
@@ -33,80 +53,83 @@ function App() {
     setS(next);
     try {
       await settingsStore.set(next);
-      setStatus(t('saved'));
+      ui.toast(t('saved'));
     } catch (e) {
-      setStatus(t('error', { message: e instanceof Error ? e.message : String(e) }));
+      ui.toast(t('error', { message: errText(e) }), true);
     }
   };
 
   const wipe = async () => {
-    if (!confirm(t('confirmDeleteAll'))) return;
+    const ok = await ui.confirm(t('deleteAll'), { message: t('confirmDeleteAll'), okLabel: t('deleteAllConfirmLabel'), danger: true });
+    if (!ok) return;
     try {
       await clearAllData();
       setS({ ...DEFAULT_SETTINGS });
-      setProjects([]);
-      setStatus(t('deletedAll'));
+      ui.toast(t('deletedAll'));
     } catch (e) {
-      setStatus(t('error', { message: e instanceof Error ? e.message : String(e) }));
+      ui.toast(t('error', { message: errText(e) }), true);
     }
   };
 
   return (
     <div class="page">
-      <h2>{t('settings')}</h2>
+      <h1>{t('settings')}</h1>
 
-      <label class="field">
-        <span>{t('citationStyle')}</span>
-        <select value={s.citationStyle} onChange={(e) => save({ ...s, citationStyle: e.currentTarget.value as CitationStyle })}>
-          {STYLES.map((c) => <option key={c} value={c}>{t(`style_${c}` as StringKey)}</option>)}
-        </select>
-      </label>
+      <Section title={t('optBibTitle')} text={t('optBibText')}>
+        <div class="style-cards" role="radiogroup" aria-label={t('citationStyle')}>
+          {STYLES.map((c) => (
+            <label key={c} class={`card style-card ${s.citationStyle === c ? 'on' : ''}`}>
+              <input type="radio" name="citationStyle" checked={s.citationStyle === c} onChange={() => save({ ...s, citationStyle: c })} />
+              <b>{t(`style_${c}` as StringKey)}</b>
+              <span class="muted small">{t(`style${c[0]!.toUpperCase()}${c.slice(1)}Desc` as StringKey)}</span>
+            </label>
+          ))}
+        </div>
+      </Section>
 
-      <label class="field">
-        <span>{t('defaultProject')}</span>
-        <select value={s.defaultProjectId ?? ''} onChange={(e) => save({ ...s, defaultProjectId: e.currentTarget.value || null })}>
-          <option value="">{t('none')}</option>
-          {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      </label>
+      <Section title={t('optExportTitle')} text={t('optExportText')}>
+        <Check checked={s.downloadImages} label={t('downloadImages')}
+          onChange={(v) => save({ ...s, downloadImages: v })} />
+        <p class="muted small opt-note-block">{t('obsidianNote')}</p>
+        <Check checked={s.obsidian.frontmatter} label={t('obsidianFrontmatter')}
+          onChange={(v) => save({ ...s, obsidian: { ...s.obsidian, frontmatter: v } })} />
+        <Check checked={s.obsidian.wikilinks} label={t('obsidianWikilinks')}
+          onChange={(v) => save({ ...s, obsidian: { ...s.obsidian, wikilinks: v } })} />
+      </Section>
 
-      <label class="field">
-        <span>{t('highlightColor')}</span>
-        <select value={s.highlightColor} onChange={(e) => save({ ...s, highlightColor: e.currentTarget.value as HighlightColor })}>
-          {COLORS.map((c) => <option key={c} value={c}>{t(`color_${c}` as StringKey)}</option>)}
-        </select>
-      </label>
+      <Section title={t('optCrawlTitle')} text={t('optCrawlText')}>
+        <label class="opt-field">
+          <span class="label">{t('crawlDelay')} ({t('ms')})</span>
+          <input class="input" type="number" min={1000} max={60000} step={100} value={s.crawl.delayMs}
+            onChange={(e) => save({ ...s, crawl: { ...s.crawl, delayMs: num(e.currentTarget.value, s.crawl.delayMs, 1000, 60000) } })} />
+          <span class="muted small">{t('crawlDelayHelp')}</span>
+        </label>
+        <label class="opt-field">
+          <span class="label">{t('crawlMaxPages')}</span>
+          <input class="input" type="number" min={1} max={5000} value={s.crawl.maxPages}
+            onChange={(e) => save({ ...s, crawl: { ...s.crawl, maxPages: num(e.currentTarget.value, s.crawl.maxPages, 1, 5000) } })} />
+          <span class="muted small">{t('crawlMaxHelp')}</span>
+        </label>
+      </Section>
 
-      <label class="check">
-        <input type="checkbox" checked={s.obsidian.frontmatter} onChange={(e) => save({ ...s, obsidian: { ...s.obsidian, frontmatter: e.currentTarget.checked } })} />
-        {t('obsidianFrontmatter')}
-      </label>
-      <label class="check">
-        <input type="checkbox" checked={s.obsidian.wikilinks} onChange={(e) => save({ ...s, obsidian: { ...s.obsidian, wikilinks: e.currentTarget.checked } })} />
-        {t('obsidianWikilinks')}
-      </label>
-      <label class="check">
-        <input type="checkbox" checked={s.downloadImages} onChange={(e) => save({ ...s, downloadImages: e.currentTarget.checked })} />
-        {t('downloadImages')}
-      </label>
+      <Section title={t('optHlTitle')} text={t('optHlText')}>
+        <div class="color-row" role="radiogroup" aria-label={t('highlightColor')}>
+          {COLORS.map((c) => (
+            <button key={c} type="button" role="radio" aria-checked={s.highlightColor === c}
+              class={`color-pick ${s.highlightColor === c ? 'on' : ''}`} title={t(`color_${c}` as StringKey)}
+              onClick={() => save({ ...s, highlightColor: c })}>
+              <span class={`dot ${c}`} />
+              {s.highlightColor === c && <Icon name="check" size={12} stroke={2.4} />}
+            </button>
+          ))}
+        </div>
+      </Section>
 
-      <label class="field">
-        <span>{t('crawlDelay')} ({t('ms')})</span>
-        <input type="number" min={1000} max={60000} step={100} value={s.crawl.delayMs}
-          onChange={(e) => save({ ...s, crawl: { ...s.crawl, delayMs: num(e.currentTarget.value, s.crawl.delayMs, 1000, 60000) } })} />
-      </label>
-      <label class="field">
-        <span>{t('crawlMaxPages')}</span>
-        <input type="number" min={1} max={5000} value={s.crawl.maxPages}
-          onChange={(e) => save({ ...s, crawl: { ...s.crawl, maxPages: num(e.currentTarget.value, s.crawl.maxPages, 1, 5000) } })} />
-      </label>
-
-      <div class="muted status" aria-live="polite">{status}</div>
-
-      <h2>{t('dangerZone')}</h2>
-      <button class="danger" onClick={wipe}>{t('deleteAll')}</button>
+      <Section title={t('optDataTitle')} text={t('optDataText')}>
+        <button type="button" class="btn danger" onClick={wipe}><Icon name="trash" size={14} />{t('deleteAll')}</button>
+      </Section>
     </div>
   );
 }
 
-render(<App />, document.getElementById('app')!);
+render(<UiProvider><Page /></UiProvider>, document.getElementById('app')!);

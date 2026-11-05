@@ -1,16 +1,25 @@
-.crawler { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
-.crawler h1 { font-size: 20px; margin: 0 0 4px; }
-.crawler h2 { font-size: 15px; margin: 18px 0 8px; }
-.crawler section { margin-top: 16px; }
-.crawler .small { font-size: 12px; }
-.crawler .error { color: #d33; }
-.crawler .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
-.crawler .spread { justify-content: space-between; }
-.crawler .field { display: flex; flex-direction: column; gap: 4px; }
-.crawler .field input { width: 100%; box-sizing: border-box; }
-.crawler ul { list-style: none; padding: 0; margin: 8px 0; }
-.crawler ul.toc { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
-.crawler ul.toc li { padding-top: 2px; padding-bottom: 2px; }
-.crawler ul.books li { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
-.crawler progress { width: 100%; }
+.crawler { max-width: 760px; margin: 0 auto; padding: 28px 20px 48px; display: flex; flex-direction: column; gap: 20px; }
+.cr-head { display: flex; align-items: center; gap: 10px; }
+.cr-head h1 { font-size: 20px; margin: 0; }
+.cr-head .logo { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); }
+.cr-section { display: flex; flex-direction: column; gap: 10px; }
+.cr-section h2 { font-size: 15px; margin: 0; }
+.cr-bar { margin-top: 6px; }
+.crawler .row { flex-wrap: wrap; }
+.crawler ul { list-style: none; padding: 0; margin: 0; }
+.crawler ul.toc { max-height: 360px; overflow: auto; padding: 6px 10px; }
+.crawler ul.toc li { padding-top: 3px; padding-bottom: 3px; }
+.crawler ul.toc label { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+.crawler ul.toc input { margin-top: 3px; }
+.crawler ul.books { display: flex; flex-direction: column; gap: 8px; }
+.crawler ul.books li { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+.cr-progress { padding: 14px; }
+.crawler progress { width: 100%; height: 8px; appearance: none; border: none; border-radius: 4px; overflow: hidden; background: var(--bg-hover); }
+.crawler progress::-webkit-progress-bar { background: var(--bg-hover); }
+.crawler progress::-webkit-progress-value { background: var(--accent); }
+.crawler progress::-moz-progress-bar { background: var(--accent); }
+.crawler .badge.ok { background: var(--accent-soft); color: var(--success); }
+.crawler .badge.err { background: var(--danger-soft); color: var(--danger); }
+.crawler .errors li { margin: 4px 0; }
 .crawler .url { word-break: break-all; }
+.cr-copy { margin: 8px 0 0; text-align: center; }

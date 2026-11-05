@@ -1,5 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { bibliographyText, domainOf, moveItem, safePreviewHtml } from '@/src/projects/utils';
+import { bibliographyText, domainOf, moveItem, relativeDate, safePreviewHtml } from '@/src/projects/utils';
+
+describe('relativeDate', () => {
+  const now = new Date('2026-05-10T12:00:00Z').getTime();
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+  const MIN = 60_000;
+  const HOUR = 60 * MIN;
+  const DAY = 24 * HOUR;
+
+  it('says "just now" under a minute', () => {
+    expect(relativeDate(ago(20_000), now, 'ru')).toBe('только что');
+    expect(relativeDate(ago(20_000), now, 'en')).toBe('just now');
+  });
+  it('formats minutes and hours', () => {
+    expect(relativeDate(ago(5 * MIN), now, 'ru')).toBe('5 мин назад');
+    expect(relativeDate(ago(3 * HOUR), now, 'ru')).toBe('3 ч назад');
+    expect(relativeDate(ago(5 * MIN), now, 'en')).toBe('5 min ago');
+  });
+  it('formats yesterday and days', () => {
+    expect(relativeDate(ago(DAY + HOUR), now, 'ru')).toBe('вчера');
+    expect(relativeDate(ago(DAY + HOUR), now, 'en')).toBe('yesterday');
+    expect(relativeDate(ago(4 * DAY), now, 'ru')).toBe('4 дн назад');
+  });
+  it('falls back to the calendar date after a week, and handles future/invalid input', () => {
+    expect(relativeDate(ago(10 * DAY), now, 'en')).toBe('2026-04-30');
+    expect(relativeDate(new Date(now + HOUR).toISOString(), now, 'en')).toBe('just now');
+    expect(relativeDate('garbage', now, 'en')).toBe('');
+  });
+});
 
 describe('moveItem', () => {
   it('moves an item forward and backward', () => {

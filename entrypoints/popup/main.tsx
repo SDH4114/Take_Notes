@@ -1,16 +1,19 @@
-// Popup page. Owner: agent A.
+// Popup page.
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { browser } from 'wxt/browser';
 import '@/src/ui/base.css';
+import './popup.css';
 import { send } from '@/src/core/messages';
 import { settings } from '@/src/core/storage';
-import type { Project } from '@/src/core/types';
+import type { ExportFormat, Project } from '@/src/core/types';
 import { t } from '@/src/extract/strings';
-import { crawlerPath, isYoutubeWatchUrl } from './logic';
-import './popup.css';
+import { Icon } from '@/src/ui/icons';
+import { IconButton, Menu, ProjectPicker, UiProvider, errText, openLibrary, runExport, type MenuItem } from '@/src/ui/components';
+import { ut } from '@/src/ui/strings';
+import { crawlerPath, findClipForUrl, isYoutubeWatchUrl } from './logic';
 
-interface Status { kind: 'ok' | 'error' | 'info'; text: string }
+interface Status { kind: 'ok' | 'error' | 'info'; text: string; clipId?: string }
 
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -19,16 +22,23 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status | null>(null);
 
+  const fail = (e: unknown) => setStatus({ kind: 'error', text: t('error', { message: errText(e) }) });
+
+  const loadProjects = async () => {
+    const list = await send('project/list');
+    setProjects(list);
+    return list;
+  };
+
   useEffect(() => {
     void (async () => {
       try {
         const [[active], list, s] = await Promise.all([
           browser.tabs.query({ active: true, currentWindow: true }),
-          send('project/list'),
+          loadProjects(),
           settings.get(),
         ]);
         setTab({ id: active?.id, url: active?.url });
-        setProjects(list);
         // A deleted project must not stay selected: fall back to Inbox.
         setProjectId(list.some((p) => p.id === s.defaultProjectId) ? s.defaultProjectId : null);
       } catch (e) {
@@ -37,10 +47,7 @@ function App() {
     })();
   }, []);
 
-  const fail = (e: unknown) => setStatus({ kind: 'error', text: t('error', { message: e instanceof Error ? e.message : String(e) }) });
-
-  const chooseProject = (value: string) => {
-    const id = value === '' ? null : value;
+  const chooseProject = (id: string | null) => {
     setProjectId(id);
     settings.set({ defaultProjectId: id }).catch(fail);
   };
@@ -60,26 +67,32 @@ function App() {
   const savePage = () =>
     run(async () => {
       const clip = await send('clip/savePage', { tabId: tab.id, projectId });
-      return { kind: 'ok', text: t('saved', { title: clip.title }) };
+      return { kind: 'ok', text: t('saved', { title: clip.title }), clipId: clip.id };
     });
 
   const saveSelection = () =>
     run(async () => {
       const clip = await send('clip/saveSelection', { tabId: tab.id, projectId });
-      return clip ? { kind: 'ok', text: t('saved', { title: clip.title }) } : { kind: 'error', text: t('noSelection') };
-    });
-
-  const exportPage = (format: 'md' | 'pdf') =>
-    run(async () => {
-      const clip = await send('clip/savePage', { tabId: tab.id, projectId });
-      await send('export/clip', { id: clip.id, format });
-      return { kind: 'ok', text: t('exported', { title: clip.title }) };
+      return clip
+        ? { kind: 'ok', text: t('saved', { title: clip.title }), clipId: clip.id }
+        : { kind: 'error', text: t('noSelection') };
     });
 
   const youtube = () =>
     run(async () => {
       const clip = await send('youtube/saveTranscript', { tabId: tab.id, projectId });
-      return clip ? { kind: 'ok', text: t('saved', { title: clip.title }) } : { kind: 'error', text: t('error', { message: 'no transcript' }) };
+      return clip
+        ? { kind: 'ok', text: t('saved', { title: clip.title }), clipId: clip.id }
+        : { kind: 'error', text: t('noTranscript') };
+    });
+
+  // Reuse the clip of this page if the project already has one; saving again would create a duplicate each time.
+  const exportPage = (format: ExportFormat) =>
+    run(async () => {
+      const existing = findClipForUrl(await send('clip/list', { projectId }), tab.url);
+      const clip = existing ?? (await send('clip/savePage', { tabId: tab.id, projectId }));
+      await runExport({ kind: 'clip', id: clip.id }, format);
+      return { kind: 'ok', text: t('exported', { title: clip.title }), clipId: clip.id };
     });
 
   const openCrawler = async () => {
@@ -94,29 +107,82 @@ function App() {
     sidebar?.open().then(() => window.close(), fail);
   };
 
+  const openLib = (clip?: string) => {
+    openLibrary({ project: projectId, clip }).then(() => window.close(), fail);
+  };
+
+  const openSettings = () => {
+    browser.runtime.openOptionsPage().then(() => window.close(), fail);
+  };
+
+  const exportItems: MenuItem[] = [
+    { label: ut('exportMd'), hint: ut('exportMdHint'), icon: 'file', onSelect: () => void exportPage('md') },
+    { label: ut('exportZip'), hint: ut('exportZipHint'), icon: 'layers', onSelect: () => void exportPage('md-zip') },
+    { label: ut('exportPdf'), hint: ut('exportPdfHint'), icon: 'book', onSelect: () => void exportPage('pdf') },
+  ];
+
   return (
-    <div class="tn-popup">
-      <label class="tn-row">
-        <span class="muted">{t('project')}</span>
-        <select value={projectId ?? ''} onChange={(e) => chooseProject(e.currentTarget.value)}>
-          <option value="">{t('inbox')}</option>
-          {projects.map((p) => (
-            <option value={p.id} key={p.id}>{p.name}</option>
-          ))}
-        </select>
-      </label>
-      <button class="primary" disabled={busy} onClick={savePage}>{t('savePage')}</button>
-      <button disabled={busy} onClick={saveSelection}>{t('saveSelection')}</button>
-      <div class="tn-pair">
-        <button disabled={busy} onClick={() => exportPage('md')}>{t('exportMd')}</button>
-        <button disabled={busy} onClick={() => exportPage('pdf')}>{t('exportPdf')}</button>
+    <div class="pop">
+      <header class="pop-head">
+        <span class="logo" aria-hidden="true"><Icon name="note" size={16} /></span>
+        <strong class="grow">TakeNotes</strong>
+        <IconButton icon="library" title={t('openLibrary')} onClick={() => openLib()} />
+        <IconButton icon="sidebar" title={t('sidebar')} onClick={openSidebar} />
+        <IconButton icon="settings" title={t('settings')} onClick={openSettings} />
+      </header>
+
+      <div class="pop-body">
+        <div>
+          <span class="label">{t('saveTo')}</span>
+          <ProjectPicker
+            projects={projects} value={projectId} onChange={chooseProject}
+            onCreated={() => void loadProjects().catch(fail)}
+          />
+        </div>
+
+        <div class="stack">
+          <button type="button" class="btn primary lg block" disabled={busy} onClick={savePage}>
+            <Icon name="globe" size={16} />{t('savePage')}
+          </button>
+          <button type="button" class="btn block between" disabled={busy} onClick={saveSelection}>
+            <span class="row"><Icon name="scissors" size={14} />{t('saveSelection')}</span>
+            <kbd class="kbd">Alt+Shift+S</kbd>
+          </button>
+          {isYoutubeWatchUrl(tab.url) && (
+            <button type="button" class="btn block" disabled={busy} onClick={youtube}>
+              <Icon name="video" size={14} />{t('youtube')}
+            </button>
+          )}
+        </div>
+
+        {status && (
+          <div class={status.kind === 'error' ? 'error-box' : 'status small'} role="status">
+            <span>{status.text}</span>
+            {status.kind === 'ok' && status.clipId && (
+              <> <a href="#" onClick={(e) => { e.preventDefault(); openLib(status.clipId); }}>{t('openClip')}</a></>
+            )}
+          </div>
+        )}
+
+        <button type="button" class="btn ghost block book" disabled={busy || tab.id == null} onClick={openCrawler}>
+          <Icon name="book" size={16} />
+          <span class="grow">
+            <span class="line">{t('crawl')}</span>
+            <span class="muted small line">{t('crawlHint')}</span>
+          </span>
+        </button>
       </div>
-      <button disabled={busy || tab.id == null} onClick={openCrawler}>{t('crawl')}</button>
-      {isYoutubeWatchUrl(tab.url) && <button disabled={busy} onClick={youtube}>{t('youtube')}</button>}
-      <button onClick={openSidebar}>{t('sidebar')}</button>
-      {status && <div class={`tn-status ${status.kind}`} role="status">{status.text}</div>}
+
+      <footer class="pop-foot">
+        <Menu placement="up" align="left" items={exportItems}
+          trigger={(toggle) => (
+            <button type="button" class="btn ghost" disabled={busy} onClick={toggle}>
+              <Icon name="download" size={14} />{t('exportPage')}<Icon name="chevronDown" size={14} />
+            </button>
+          )} />
+      </footer>
     </div>
   );
 }
 
-render(<App />, document.getElementById('app')!);
+render(<UiProvider><App /></UiProvider>, document.getElementById('app')!);
