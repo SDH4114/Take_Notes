@@ -3,7 +3,7 @@ import type { ComponentChildren, Ref } from 'preact';
 import { browser } from 'wxt/browser';
 import type { Project } from '@/src/core/types';
 import { IconButton } from '@/src/ui/components';
-import { Icon } from '@/src/ui/icons';
+import { Icon, Logo } from '@/src/ui/icons';
 import { ut } from '@/src/ui/strings';
 import type { BookSummary } from './Lists';
 import { lt } from './strings';
@@ -19,7 +19,7 @@ export function Nav(p: {
   return (
     <nav class="nav">
       <div class="brand">
-        <span class="logo"><Icon name="note" size={14} stroke={2} /></span>
+        <span class="logo"><Logo size={22} /></span>
         <span class="brand-name">TakeNotes</span>
       </div>
 

@@ -1,6 +1,6 @@
 body { width: 340px; }
 .pop-head { display: flex; align-items: center; gap: 4px; padding: 10px 10px 8px 14px; }
-.pop-head .logo { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-right: 6px; border-radius: 7px; background: var(--accent); color: var(--accent-fg); }
+.pop-head .logo { display: inline-flex; width: 24px; height: 24px; margin-right: 6px; flex: none; }
 .pop-body { display: flex; flex-direction: column; gap: 12px; padding: 4px 14px 14px; }
 .pop .stack { display: flex; flex-direction: column; gap: 6px; }
 .pop .btn.between { justify-content: space-between; }

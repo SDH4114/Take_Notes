@@ -63,3 +63,18 @@ export function Icon({ name, size = 16, stroke = 1.8 }: { name: IconName; size?:
     </svg>
   );
 }
+
+/** App logo (same drawing as public/icon/logo.svg): notebook with a highlighted line. */
+export function Logo({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 128 128" aria-hidden="true" class="tn-logo">
+      <rect width="128" height="128" rx="28" fill="#5b5bd6" />
+      <rect x="36" y="22" width="64" height="84" rx="9" fill="#fff" />
+      <rect x="52" y="63" width="38" height="14" rx="4" fill="#facc15" />
+      <g stroke="#c9c9f2" stroke-width="6" stroke-linecap="round"><path d="M56 42h30" /><path d="M56 56h30" /><path d="M56 84h22" /></g>
+      <path d="M56 70h30" stroke="#5b5bd6" stroke-width="6" stroke-linecap="round" />
+      <g stroke="#fff" stroke-width="7" stroke-linecap="round"><path d="M26 38h18" /><path d="M26 56h18" /><path d="M26 74h18" /><path d="M26 92h18" /></g>
+      <g fill="#5b5bd6"><circle cx="44" cy="38" r="3.5" /><circle cx="44" cy="56" r="3.5" /><circle cx="44" cy="74" r="3.5" /><circle cx="44" cy="92" r="3.5" /></g>
+    </svg>
+  );
+}

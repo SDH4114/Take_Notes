@@ -12,7 +12,7 @@ import { defaultBookTitle } from '@/src/crawl/book';
 import { scopePrefix } from '@/src/crawl/toc';
 import { strings } from '@/src/crawl/strings';
 import { ExportMenu, IconButton, UiProvider, errText, useUi } from '@/src/ui/components';
-import { Icon } from '@/src/ui/icons';
+import { Icon, Logo } from '@/src/ui/icons';
 
 initTheme();
 
@@ -122,7 +122,7 @@ function Crawler() {
   return (
     <main class="crawler">
       <header class="cr-head">
-        <span class="logo" aria-hidden="true"><Icon name="book" size={16} /></span>
+        <span class="logo" aria-hidden="true"><Logo size={28} /></span>
         <h1>{t('pageTitle')}</h1>
       </header>
       {error && <div class="error-box">{error}</div>}

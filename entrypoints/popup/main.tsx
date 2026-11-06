@@ -9,7 +9,7 @@ import { send } from '@/src/core/messages';
 import { settings } from '@/src/core/storage';
 import type { ExportFormat, Project } from '@/src/core/types';
 import { t } from '@/src/extract/strings';
-import { Icon } from '@/src/ui/icons';
+import { Icon, Logo } from '@/src/ui/icons';
 import { IconButton, Menu, ProjectPicker, UiProvider, errText, openLibrary, runExport, type MenuItem } from '@/src/ui/components';
 import { ut } from '@/src/ui/strings';
 import { crawlerPath, findClipForUrl, isYoutubeWatchUrl } from './logic';
@@ -152,7 +152,7 @@ function App() {
   return (
     <div class="pop">
       <header class="pop-head">
-        <span class="logo" aria-hidden="true"><Icon name="note" size={16} /></span>
+        <span class="logo" aria-hidden="true"><Logo size={24} /></span>
         <strong class="grow">TakeNotes</strong>
         <IconButton icon="library" title={t('openLibrary')} onClick={() => openLib()} />
         <IconButton icon="sidebar" title={t('sidebar')} onClick={openSidebar} />

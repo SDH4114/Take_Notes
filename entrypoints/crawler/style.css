@@ -1,7 +1,7 @@
 .crawler { max-width: 760px; margin: 0 auto; padding: 28px 20px 48px; display: flex; flex-direction: column; gap: 20px; }
 .cr-head { display: flex; align-items: center; gap: 10px; }
 .cr-head h1 { font-size: 20px; margin: 0; }
-.cr-head .logo { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); }
+.cr-head .logo { display: inline-flex; width: 28px; height: 28px; flex: none; }
 .cr-section { display: flex; flex-direction: column; gap: 10px; }
 .cr-section h2 { font-size: 15px; margin: 0; }
 .cr-bar { margin-top: 6px; }
