@@ -34,3 +34,11 @@
 .swatch-label { font-size: 11px; color: var(--muted); height: 14px; }
 .swatch.add .swatch-dot { background: var(--bg-sub); color: var(--fg-sub); border-style: dashed; box-shadow: none; border-color: var(--border-strong); }
 .sr-only { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.site-add { margin-bottom: 8px; }
+.site-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.site-list li { padding: 4px 6px 4px 10px; }
+.site-list li + li { border-top: 1px solid var(--border); }
+.theme-swatch { display: block; height: 28px; border-radius: 4px; border: 1px solid var(--border-strong); margin-bottom: 4px; }
+.theme-swatch.light { background: #fff; }
+.theme-swatch.dark { background: #18181b; }
+.theme-swatch.system { background: linear-gradient(135deg, #fff 50%, #18181b 50%); }

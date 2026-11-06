@@ -6,7 +6,7 @@ import { PRINT_READY } from '@/src/export/pdf';
 import { buildPrintHtml, PRINT_CSS } from '@/src/export/printdoc';
 import { exportT } from '@/src/export/strings';
 
-const KINDS: PrintKind[] = ['clip', 'project', 'book', 'highlights'];
+const KINDS: PrintKind[] = ['clip', 'project', 'book', 'highlights', 'board'];
 const IMAGE_TIMEOUT_MS = 20_000;
 
 declare global {
@@ -40,7 +40,7 @@ async function main(): Promise<void> {
   document.title = doc.title;
   document.documentElement.lang = doc.lang;
   const style = document.createElement('style');
-  style.textContent = PRINT_CSS;
+  style.textContent = doc.landscape ? `${PRINT_CSS}\n@page { size: A4 landscape; margin: 12mm; }` : PRINT_CSS;
   document.head.append(style);
   // buildPrintHtml: every section body is sanitized with DOMPurify, all other text is escaped.
   document.getElementById('app')!.innerHTML = buildPrintHtml(doc);

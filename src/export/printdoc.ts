@@ -3,9 +3,11 @@ import DOMPurify from 'dompurify';
 import { formatBibliography } from '@/src/cite';
 import { MATH_ATTR, MATH_TEX_ATTR } from '@/src/markdown';
 import { uiLang, type Lang } from '@/src/core/i18n';
-import type { Book, Clip, Highlight, Project, SourceMeta } from '@/src/core/types';
+import type { BoardColumn, Book, Clip, Highlight, Project, SourceMeta } from '@/src/core/types';
+import { renderMarkdown } from '@/src/ui/markdown';
 import { normalizeUrl } from '@/src/core/util';
 import { exportT } from './strings';
+import { highlightsForClip, markHighlightsInHtml } from '@/src/highlight/apply';
 
 export interface PrintSection {
   title: string;
@@ -26,6 +28,8 @@ export interface PrintDoc {
   lang: Lang;
   sections: PrintSection[];
   bibliography: string[];
+  /** Wide document (the kanban board): no title page, landscape page. */
+  landscape?: boolean;
 }
 
 export const escapeHtml = (s: string): string =>
@@ -92,14 +96,70 @@ function biblio(sources: SourceMeta[], style: Project['citationStyle']): string[
   return unique.length ? formatBibliography(unique, style) : [];
 }
 
-export function clipPrintDoc(clip: Clip, lang: Lang = uiLang()): PrintDoc {
+// Long notes are Markdown (renderMarkdown sanitizes with DOMPurify); headings are pushed below the section's.
+const quotesHtml = (list: readonly Highlight[]) => list
+  .map((h) => `<div class="hl"><blockquote>${escapeHtml(h.text.trim())}</blockquote>`
+    + `${h.note?.trim() ? `<p class="note">${escapeHtml(h.note.trim())}</p>` : ''}`
+    + `${h.body?.trim() ? `<div class="hl-body">${prepareHtml(renderMarkdown(h.body), 2)}</div>` : ''}</div>`)
+  .join('');
+
+interface BoardInput { columns: readonly BoardColumn[]; cards: ReadonlyMap<string, readonly Clip[]> }
+
+/** Columns side by side as a table: one cell per column, cards stacked inside. */
+function boardHtml(b: BoardInput): string {
+  const head = b.columns.map((c) => `<th>${escapeHtml(c.name)} <span class="n">${b.cards.get(c.id)?.length ?? 0}</span></th>`).join('');
+  const body = b.columns.map((c) => `<td>${(b.cards.get(c.id) ?? [])
+    .map((x) => `<div class="kcard"><b>${escapeHtml(x.title.trim() || '…')}</b>${x.note?.trim() ? `<p>${escapeHtml(x.note.trim())}</p>` : ''}</div>`)
+    .join('')}</td>`).join('');
+  return `<table class="kanban"><thead><tr>${head}</tr></thead><tbody><tr>${body}</tr></tbody></table>`;
+}
+
+/** One highlight as its own document: quote, short note, long note (Markdown), link to the page. */
+export function highlightPrintDoc(h: Highlight, title: string, lang: Lang = uiLang(), noteTitle?: string): PrintDoc {
+  const t = exportT(lang);
+  let html = `<blockquote>${escapeHtml(h.text.trim())}</blockquote>`;
+  if (noteTitle) html += `<p>${t('fromNote')}: ${escapeHtml(noteTitle)}</p>`;
+  if (h.note?.trim()) html += `<h2>${t('shortNote')}</h2><p>${escapeHtml(h.note.trim())}</p>`;
+  if (h.body?.trim()) html += `<h2>${t('longNote')}</h2>${prepareHtml(renderMarkdown(h.body), 2)}`;
+  return { title, source: srcRef(h.source), date: today(), lang, bibliography: [], sections: [{ title, level: 1, html }] };
+}
+
+/** Contents page of a whole-project archive: files by folder (plain text: links between PDFs don't survive zips). */
+export function projectIndexPrintDoc(
+  project: Project, groups: { folder: string; files: string[] }[], extras: string[], bibliography: SourceMeta[], lang: Lang = uiLang(),
+): PrintDoc {
+  const list = (xs: string[]) => `<ul>${xs.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul>`;
+  let html = '';
+  for (const g of groups) html += `${g.folder ? `<h3>${escapeHtml(g.folder)}/</h3>` : ''}${list(g.files)}`;
+  if (extras.length) html += list(extras);
   return {
-    title: clip.title, source: srcRef(clip.source), date: today(), lang, bibliography: [],
-    sections: [{ title: clip.title, level: 1, html: prepareHtml(clip.html, 1), source: srcRef(clip.source) }],
+    title: project.name, subtitle: project.description, date: today(), lang,
+    sections: [{ title: exportT(lang)('contents'), level: 1, html }],
+    bibliography: biblio(bibliography, project.citationStyle),
   };
 }
 
-export function projectPrintDoc(project: Project, clips: Clip[], lang: Lang = uiLang()): PrintDoc {
+export function boardPrintDoc(title: string, board: BoardInput, lang: Lang = uiLang()): PrintDoc {
+  return { title, date: today(), lang, bibliography: [], landscape: true, sections: [{ title, level: 1, html: boardHtml(board) }] };
+}
+
+/** Sanitized clip HTML with its page's highlights wrapped in <mark>. */
+function clipHtml(clip: Clip, level: number, hls: readonly Highlight[]): string {
+  const html = prepareHtml(clip.html, level);
+  const mine = highlightsForClip(clip, hls);
+  return mine.length ? markHighlightsInHtml(html, mine).html : html;
+}
+
+export function clipPrintDoc(clip: Clip, lang: Lang = uiLang(), hls: readonly Highlight[] = []): PrintDoc {
+  const sections: PrintSection[] = [{ title: clip.title, level: 1, html: clipHtml(clip, 1, hls), source: srcRef(clip.source) }];
+  const mine = highlightsForClip(clip, hls);
+  if (mine.length) sections.push({ title: exportT(lang)('highlights'), level: 2, html: quotesHtml(mine) });
+  return { title: clip.title, source: srcRef(clip.source), date: today(), lang, bibliography: [], sections };
+}
+
+export function projectPrintDoc(
+  project: Project, clips: Clip[], lang: Lang = uiLang(), hls: readonly Highlight[] = [], board?: BoardInput,
+): PrintDoc {
   const sorted = [...clips].sort((a, b) => a.order - b.order);
   const groups = new Map<string, Clip[]>();
   for (const c of sorted) groups.set(c.section?.trim() ?? '', [...(groups.get(c.section?.trim() ?? '') ?? []), c]);
@@ -108,9 +168,11 @@ export function projectPrintDoc(project: Project, clips: Clip[], lang: Lang = ui
     const level = section ? 2 : 1;
     if (section) sections.push({ title: section, level: 1, html: '' });
     for (const c of list) {
-      sections.push({ title: c.title, level, html: prepareHtml(c.html, level), source: srcRef(c.source) });
+      sections.push({ title: c.title, level, html: clipHtml(c, level, hls), source: srcRef(c.source) });
     }
   }
+  if (hls.length) sections.push({ title: exportT(lang)('highlights'), level: 1, html: quotesHtml(hls) });
+  if (board && sorted.length) sections.push({ title: exportT(lang)('board'), level: 1, html: boardHtml(board) });
   return {
     title: project.name, subtitle: project.description, date: today(), lang, sections,
     bibliography: biblio(sorted.map((c) => c.source), project.citationStyle),
@@ -134,9 +196,7 @@ export function highlightsPrintDoc(items: Highlight[], name: string, lang: Lang 
     title: list[0]!.source.title || list[0]!.url,
     level: 1,
     source: srcRef(list[0]!.source),
-    html: list
-      .map((h) => `<blockquote>${escapeHtml(h.text.trim())}</blockquote>${h.note?.trim() ? `<p class="note">${escapeHtml(h.note.trim())}</p>` : ''}`)
-      .join(''),
+    html: quotesHtml(list),
   }));
   return { title: name, date: today(), lang, sections, bibliography: [] };
 }
@@ -150,6 +210,9 @@ function link(r: { title: string; url: string }): string {
 /** Body HTML of the print page (title page, contents, chapters, bibliography). */
 export function buildPrintHtml(doc: PrintDoc): string {
   const t = exportT(doc.lang);
+  if (doc.landscape) {
+    return `<section class="wide"><h1>${escapeHtml(doc.title)}</h1><p class="meta">${doc.date}</p>${doc.sections.map((s) => s.html).join('')}</section>`;
+  }
   let out = `<header class="title-page"><h1>${escapeHtml(doc.title)}</h1>`;
   if (doc.subtitle?.trim()) out += `<p class="subtitle">${escapeHtml(doc.subtitle.trim())}</p>`;
   if (doc.source) out += `<p class="meta">${t('source')}: ${link(doc.source)}</p>`;
@@ -203,5 +266,15 @@ th, td { border: 1px solid #555; padding: .3em .5em; vertical-align: top; }
 thead { display: table-header-group; }
 blockquote { margin: 1em 0; padding: .1em 1em; border-left: 3px solid #999; color: #222; }
 p.note { margin-left: 1em; font-style: italic; }
+.hl { break-inside: avoid-page; margin-bottom: 1.2em; }
+.hl-body { margin-left: 1em; }
+table.kanban { table-layout: fixed; border-collapse: separate; border-spacing: 6px 0; }
+table.kanban th, table.kanban td { border: 0; background: #f2f2f4; vertical-align: top; padding: .4em; }
+table.kanban th { text-align: left; font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10pt; border-radius: 4px 4px 0 0; }
+table.kanban th .n { color: #777; font-weight: normal; }
+.kcard { background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: .35em .5em; margin-bottom: .4em; font-size: 9.5pt; break-inside: avoid; }
+.kcard p { margin: .2em 0 0; color: #444; }
+.wide h1 { margin-top: 0; }
+mark.tn-hl { color: inherit; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 .biblio ol { padding-left: 1.6em; }
 `;

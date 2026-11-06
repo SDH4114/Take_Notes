@@ -14,10 +14,10 @@ function matches(parts: (string | undefined)[], query: string): boolean {
 }
 
 export const filterClips = (list: Clip[], query: string): Clip[] =>
-  list.filter((c) => matches([c.title, c.markdown, c.note, c.source.url ? domainOf(c.source.url) : '', c.source.title], query));
+  list.filter((c) => matches([c.title, c.markdown, c.note, c.source.url ? domainOf(c.source.url) : '', c.source.title, ...c.tags.map((t) => `#${t}`)], query));
 
 export const filterHighlights = (list: Highlight[], query: string): Highlight[] =>
-  list.filter((h) => matches([h.text, h.note, h.source.title, h.source.url ? domainOf(h.source.url) : ''], query));
+  list.filter((h) => matches([h.text, h.note, h.body, h.source.title, h.source.url ? domainOf(h.source.url) : ''], query));
 
 export function countByProject(items: { projectId: string | null }[]): Map<string | null, number> {
   const m = new Map<string | null, number>();
@@ -37,9 +37,11 @@ export function moveId(ids: string[], id: string, target: string, where: 'before
 
 // ---------- URL state
 
-export type LibraryView = 'clips' | 'highlights' | 'books';
+export type LibraryView = 'clips' | 'highlights' | 'books' | 'graph' | 'board';
 export interface LibraryState { project: string | null; clip: string | undefined; view: LibraryView }
-const VIEWS: LibraryView[] = ['clips', 'highlights', 'books'];
+const VIEWS: LibraryView[] = ['clips', 'highlights', 'books', 'graph', 'board'];
+/** Views that take the whole width (no list + detail split). */
+export const isWideView = (v: LibraryView): boolean => v === 'graph' || v === 'board';
 
 export function parseParams(search: string): LibraryState {
   const q = new URLSearchParams(search);

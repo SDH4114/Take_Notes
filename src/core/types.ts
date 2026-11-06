@@ -4,7 +4,8 @@ export type CitationStyle = 'gost' | 'apa' | 'mla';
 export type ClipKind = 'page' | 'selection' | 'transcript' | 'chapter';
 /** "#rrggbb" (v0.3+) or a legacy name ('yellow'|'green'|'blue'|'pink'|'purple'). Always read via colorHex(). */
 export type HighlightColor = string;
-export type ExportFormat = 'md' | 'md-zip' | 'md-folder-zip' | 'pdf' | 'anki-tsv';
+/** 'pdf-zip': a zip of PDFs generated in JS (whole project); 'pdf' uses Firefox' own PDF printer. */
+export type ExportFormat = 'md' | 'md-zip' | 'md-folder-zip' | 'pdf' | 'pdf-zip' | 'anki-tsv';
 
 /** Bibliographic metadata of a web source. Dates are ISO 8601 strings. */
 export interface SourceMeta {
@@ -51,10 +52,12 @@ export interface Clip {
   source: SourceMeta;
   note?: string;
   tags: string[];
-  /** Optional section heading inside a project export. */
+  /** Folder inside the project (Library "folders"); also the section heading in exports. */
   section?: string;
   /** Sort order inside a project (ascending). */
   order: number;
+  /** Kanban column id (see BoardColumn); missing or unknown = first column. */
+  status?: string;
   assetIds: string[];
   createdAt: string;
   updatedAt: string;
@@ -85,11 +88,22 @@ export interface Highlight {
   color: HighlightColor;
   anchor: TextQuoteAnchor;
   text: string;
+  /** Short note: edited in the page popover and shown on the site. */
   note?: string;
+  /** Long Markdown note: edited only in the Library. Pages never change it (see highlight/save). */
+  body?: string;
   source: SourceMeta;
   projectId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Kanban column of a project board. */
+export interface BoardColumn {
+  id: string;
+  name: string;
+  /** Checked-off cards go here. At most one column has it; see doneColumnId(). */
+  done?: boolean;
 }
 
 export interface TocEntry {

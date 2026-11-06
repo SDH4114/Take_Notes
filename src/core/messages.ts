@@ -18,7 +18,8 @@ export interface BackgroundMessages {
   'project/delete': [{ id: string }, void];
   'clip/list': [{ projectId: string | null }, Clip[]];
   /** New empty/handwritten note (kind 'selection' with no page source). */
-  'clip/create': [{ projectId: string | null; title: string; markdown?: string }, Clip];
+  /** `status`: kanban column of the new note (cards created on the board). */
+  'clip/create': [{ projectId: string | null; title: string; markdown?: string; status?: string }, Clip];
   'clip/update': [Clip, Clip];
   'clip/delete': [{ id: string }, void];
   'clip/reorder': [{ projectId: string | null; ids: string[] }, void];
@@ -27,6 +28,8 @@ export interface BackgroundMessages {
   'highlight/listAll': [{ projectId?: string | null }, Highlight[]];
   'highlight/save': [Highlight, Highlight];
   'highlight/delete': [{ id: string }, void];
+  /** Move a highlight to another project (extension pages only). */
+  'highlight/move': [{ id: string; projectId: string | null }, Highlight];
   /** Palette for the in-page toolbar (default color first). */
   'highlight/palette': [void, { colors: string[]; defaultColor: string }];
   /** Open (or focus) the highlight's page, scroll to it and flash it. */
@@ -42,6 +45,7 @@ export interface BackgroundMessages {
   'export/clip': [{ id: string; format: ExportFormat }, void];
   'export/project': [{ projectId: string | null; format: ExportFormat }, void];
   'export/book': [{ id: string; format: ExportFormat }, void];
+  'export/board': [{ projectId: string | null; format: 'md' | 'pdf' }, void];
   'export/highlights': [{ url?: string; projectId?: string | null; format: ExportFormat }, void];
   // youtube (owner: youtube module)
   'youtube/saveTranscript': [{ tabId?: number; projectId?: string | null }, Clip | null];

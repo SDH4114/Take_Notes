@@ -78,12 +78,12 @@ export function setupProjectsBackground(): Handlers<BackgroundMessages> {
 
     'clip/list': ({ projectId }) => clips.listByProject(projectId),
     'clip/update': updateClip,
-    'clip/create': async ({ projectId, title, markdown = '' }) => {
+    'clip/create': async ({ projectId, title, markdown = '', status }) => {
       const now = nowIso();
       const clip: Clip = {
         id: newId(), projectId, kind: 'selection', title: title.trim() || 'Untitled', html: renderMarkdown(markdown), markdown,
         source: { url: '', title: title.trim(), authors: [], accessed: now }, tags: [], order: await clips.nextOrder(projectId),
-        assetIds: [], createdAt: now, updatedAt: now,
+        assetIds: [], createdAt: now, updatedAt: now, ...(status ? { status } : {}),
       };
       await clips.put(clip);
       broadcast('data/changed', { kind: 'clip' });

@@ -32,10 +32,10 @@ describe('loadPrintDoc', () => {
     await highlights.put(hl('h1', 'p1'));
 
     expect((await loadPrintDoc('clip', 'c1', 'en')).title).toBe('T-c1');
-    expect((await loadPrintDoc('project', 'p1', 'en')).sections.map((s) => s.title)).toEqual(['T-c2', 'T-c1']);
+    expect((await loadPrintDoc('project', 'p1', 'en')).sections.map((s) => s.title)).toEqual(['T-c2', 'T-c1', 'Highlights', 'Board']); // + highlights and the kanban board
     const inbox = await loadPrintDoc('project', '__inbox__', 'en');
     expect(inbox.title).toBe('Inbox');
-    expect(inbox.sections.map((s) => s.title)).toEqual(['T-c3']);
+    expect(inbox.sections.map((s) => s.title)).toEqual(['T-c3', 'Highlights', 'Board']) // same page as h1;
     expect((await loadPrintDoc('book', 'b1', 'en')).title).toBe('Bk');
     expect((await loadPrintDoc('highlights', 'project:p1', 'en')).title).toBe('Highlights: Proj');
   });

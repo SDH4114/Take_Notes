@@ -7,7 +7,7 @@ vi.mock('@/src/cite', () => ({
 }));
 
 import {
-  bookToFolderFiles, bookToMarkdownExport, clipToMarkdown, projectToMarkdown,
+  bookToFolderFiles, bookToMarkdownExport, clipToMarkdown, projectToFolderFiles, projectToMarkdown,
   shiftHeadings, yamlScalar,
 } from '@/src/export/document';
 
@@ -152,3 +152,53 @@ describe('book export', () => {
   });
 });
 
+
+describe('highlights in exports', () => {
+  const h = (id: string, text: string, note?: string) => ({
+    id, url: 'https://ex.com/a', color: '#facc15', anchor: { exact: text, prefix: '', suffix: '' }, text, note,
+    source: src(), projectId: 'p1', createdAt: `2025-01-0${id.length}T00:00:00Z`, updatedAt: '',
+  });
+
+  it('clip export marks highlighted text and lists every highlight with its note', () => {
+    const out = clipToMarkdown(clip({ markdown: 'Intro text here.' }), noFm, 'en', [{ ...h('a', 'text here', 'why'), body: 'long one' }, h('bb', 'absent')]);
+    expect(out).toContain('Intro ==text here==.');
+    expect(out).toContain('why\n\nlong one');
+    expect(out).toContain('## Highlights\n\n> text here\n\nwhy\n\nlong one\n\n> absent');
+  });
+
+  it('project export appends a highlights section', () => {
+    const project: Project = { id: 'p1', name: 'P', citationStyle: 'apa', createdAt: '', updatedAt: '' };
+    const out = projectToMarkdown(project, [clip({ markdown: 'Intro text here.' })], noFm, 'en', [h('a', 'text here')]);
+    expect(out).toContain('==text here==');
+    expect(out).toMatch(/## Highlights\n\n### \[Ownership\]/);
+  });
+
+  it('project folder: notes in their folders, highlights/ with one file each, board.md, index', () => {
+    const project: Project = { id: 'p1', name: 'P', citationStyle: 'apa', createdAt: '', updatedAt: '' };
+    const wl = settings({ obsidian: { frontmatter: false, wikilinks: true } });
+    const notes = [
+      clip({ id: 'x', title: 'Same', order: 1, markdown: 'Intro ![i](images/a.png)' }),
+      clip({ id: 'y', title: 'Same', order: 0 }),
+      clip({ id: 'z', title: 'Deep', order: 2, section: ' Ch  1 ', markdown: 'Intro ![i](images/a.png)' }),
+    ];
+    const cols = [{ id: 'todo', name: 'To read' }, { id: 'done', name: 'Done' }];
+    const board = { columns: cols, cards: new Map([['todo', [notes[1]!]], ['done', [notes[0]!, notes[2]!]]]) };
+    const hls = [{ ...h('a', 'Intro', 'short'), body: '# Big\n\ntext' }, h('bb', 'Other')];
+    const files = projectToFolderFiles(project, notes, wl, 'en', { highlights: hls, board });
+    expect(Object.keys(files).sort()).toEqual([
+      'Ch 1/Deep.md', 'Same 2.md', 'Same.md', 'board.md', 'highlights/001 - Intro.md', 'highlights/002 - Other.md', 'index.md',
+    ]);
+    expect(files['index.md']).toContain('- [[Same|Same]]\n- [[Same 2|Same]]\n\n### Ch 1\n\n- [[Ch 1/Deep|Deep]]');
+    expect(files['index.md']).toContain('[[highlights/001 - Intro|Intro]]');
+    expect(files['index.md']).toContain('[[board|Board]]');
+    // notes in a folder point to the shared images/ one level up
+    expect(files['Ch 1/Deep.md']).toContain('](../images/a.png)');
+    expect(files['Same 2.md']).toContain('](images/a.png)');
+    const hl = files['highlights/001 - Intro.md']!;
+    expect(hl).toContain('# Intro\n\n> Intro');
+    expect(hl).toMatch(/Note: \[\[(Same|Deep)\]\]/); // all test notes share one page URL
+    expect(hl).toContain('## Short note\n\nshort');
+    expect(hl).toContain('## Note\n\n### Big');
+    expect(files['board.md']).toBe('---\nkanban-plugin: basic\n---\n\n# Board: P\n\n## To read\n\n- [ ] [[Same]]\n\n## Done\n\n- [ ] [[Same]]\n- [ ] [[Deep]]\n');
+  });
+});

@@ -1,9 +1,9 @@
 // Turns stored data + a format into a downloadable file. Pure of browser APIs except the injected fetch.
 import { uiLang, type Lang } from '@/src/core/i18n';
-import type { Book, Clip, ExportFormat, Highlight, Project, Settings } from '@/src/core/types';
+import type { BoardColumn, Book, Clip, ExportFormat, Highlight, Project, Settings } from '@/src/core/types';
 import { highlightsToAnkiTsv } from '@/src/highlight/anki';
 import {
-  bookToFolderFiles, bookToMarkdownExport, clipToMarkdown, inboxName, projectToMarkdown,
+  boardToMarkdown, bookToFolderFiles, bookToMarkdownExport, clipToMarkdown, inboxName, projectToFolderFiles, projectToMarkdown,
 } from './document';
 import { exportFilename, markdownBlob, textBlob } from './download';
 import { localizeImages } from './images';
@@ -20,6 +20,10 @@ export interface Artifact {
 export interface BuildIO {
   fetchFn?: typeof fetch;
   lang?: Lang;
+  /** Highlights to mark inside notes and list in a "Highlights" section. */
+  highlights?: readonly Highlight[];
+  /** Kanban board of the project (whole-project folder export). */
+  board?: { columns: readonly BoardColumn[]; cards: ReadonlyMap<string, readonly Clip[]> };
 }
 
 type Subject = 'whatClip' | 'whatProject' | 'whatBook' | 'whatHighlights';
@@ -38,11 +42,11 @@ export async function buildClipArtifact(clip: Clip, format: ExportFormat, settin
   const lang = io.lang ?? uiLang();
   const base = clip.title;
   if (format === 'md') {
-    return { filename: exportFilename(base, 'md'), blob: markdownBlob(clipToMarkdown(clip, settings, lang)) };
+    return { filename: exportFilename(base, 'md'), blob: markdownBlob(clipToMarkdown(clip, settings, lang, io.highlights)) };
   }
   if (format === 'md-zip') {
     const loc = await images([clip.markdown], settings, io);
-    const md = clipToMarkdown({ ...clip, markdown: loc.markdown[0] ?? clip.markdown }, settings, lang);
+    const md = clipToMarkdown({ ...clip, markdown: loc.markdown[0] ?? clip.markdown }, settings, lang, io.highlights);
     const mdName = exportFilename(base, 'md');
     return { filename: exportFilename(base, 'zip'), blob: createZip({ [mdName]: md, ...loc.files }) };
   }
@@ -57,13 +61,22 @@ export async function buildProjectArtifact(
     id: '__inbox__', name: inboxName(lang), citationStyle: settings.citationStyle, createdAt: '', updatedAt: '',
   };
   if (format === 'md') {
-    return { filename: exportFilename(proj.name, 'md'), blob: markdownBlob(projectToMarkdown(proj, clips, settings, lang)) };
+    return { filename: exportFilename(proj.name, 'md'), blob: markdownBlob(projectToMarkdown(proj, clips, settings, lang, io.highlights)) };
   }
   if (format === 'md-zip') {
     const loc = await images(clips.map((c) => c.markdown), settings, io);
     const localized = clips.map((c, i) => ({ ...c, markdown: loc.markdown[i] ?? c.markdown }));
-    const md = projectToMarkdown(proj, localized, settings, lang);
+    const md = projectToMarkdown(proj, localized, settings, lang, io.highlights);
     return { filename: exportFilename(proj.name, 'zip'), blob: createZip({ [exportFilename(proj.name, 'md')]: md, ...loc.files }) };
+  }
+  if (format === 'md-folder-zip') {
+    const loc = await images(clips.map((c) => c.markdown), settings, io);
+    const localized = clips.map((c, i) => ({ ...c, markdown: loc.markdown[i] ?? c.markdown }));
+    const folder = slugifyFilename(proj.name);
+    const entries: Record<string, string | Uint8Array> = {};
+    for (const [path, text] of Object.entries(projectToFolderFiles(proj, localized, settings, lang, { highlights: io.highlights, board: io.board }))) entries[`${folder}/${path}`] = text;
+    for (const [path, data] of Object.entries(loc.files)) entries[`${folder}/${path}`] = data;
+    return { filename: exportFilename(proj.name, 'zip'), blob: createZip(entries) };
   }
   throw unsupported(format, 'whatProject', lang);
 }
@@ -87,6 +100,13 @@ export async function buildBookArtifact(book: Book, format: ExportFormat, settin
     return { filename: exportFilename(book.title, 'zip'), blob: createZip(entries) };
   }
   throw unsupported(format, 'whatBook', lang);
+}
+
+/** Kanban board alone as Markdown (Obsidian Kanban format). */
+export function buildBoardArtifact(
+  title: string, board: { columns: readonly BoardColumn[]; cards: ReadonlyMap<string, readonly Clip[]> }, settings: Settings,
+): Artifact {
+  return { filename: exportFilename(title, 'md'), blob: markdownBlob(boardToMarkdown(title, board.columns, board.cards, settings)) };
 }
 
 export async function buildHighlightsArtifact(

@@ -89,3 +89,29 @@ describe('highlight background handlers', () => {
     await expect(call('highlight/save', hl({ id: 'mine' }), evil)).resolves.toMatchObject({ id: 'mine' });
   });
 });
+
+describe('highlight/move', () => {
+  it('moves a highlight between projects from extension pages only', async () => {
+    await highlights.put(hl({ id: 'm1', projectId: null }));
+    const moved = (await call('highlight/move', { id: 'm1', projectId: 'p2' })) as Highlight;
+    expect(moved.projectId).toBe('p2');
+    expect((await highlights.get('m1'))?.projectId).toBe('p2');
+    await expect(call('highlight/move', { id: 'm1', projectId: null }, pageSender('https://a.example/p'))).rejects.toThrow();
+    await expect(call('highlight/move', { id: 'nope', projectId: null })).rejects.toThrow();
+  });
+});
+
+describe('highlight long note (body)', () => {
+  it('extension pages edit the body, web pages can never change it', async () => {
+    const page = 'https://a.example/p';
+    await highlights.put(hl({ id: 'b1', url: page }));
+    await call('highlight/save', { ...hl({ id: 'b1', url: page }), body: '# Long' });
+    expect((await highlights.get('b1'))?.body).toBe('# Long');
+    // A page re-saves its stale copy (recolor): body survives.
+    await call('highlight/save', { ...hl({ id: 'b1', url: page }), color: '#4ade80', body: 'hacked' }, pageSender(page));
+    expect(await highlights.get('b1')).toMatchObject({ body: '# Long', color: '#4ade80' });
+    // A new highlight from a page cannot bring a body either.
+    await call('highlight/save', { ...hl({ id: 'b2', url: page }), body: 'x' }, pageSender(page));
+    expect((await highlights.get('b2'))?.body).toBeUndefined();
+  });
+});

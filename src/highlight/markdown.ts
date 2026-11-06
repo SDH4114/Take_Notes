@@ -21,6 +21,7 @@ export function highlightsToMarkdown(items: Highlight[]): string {
       if (h.color !== 'yellow' && !h.color.startsWith('#')) quote[quote.length - 1] += ` (${h.color})`;
       lines.push(...quote, '');
       if (h.note?.trim()) lines.push(h.note.trim(), '');
+      if (h.body?.trim()) lines.push(h.body.trim(), '');
     }
   }
   return lines.join('\n');

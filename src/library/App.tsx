@@ -2,17 +2,23 @@
 import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { onBroadcast, send } from '@/src/core/messages';
-import { books as bookStore } from '@/src/core/storage';
+import { books as bookStore, folders as folderStore } from '@/src/core/storage';
+import { folderList, folderName, renameFolder as renameInList } from './folders';
 import type { Clip, Highlight, Project } from '@/src/core/types';
-import { Empty, errText, ExportMenu, useUi } from '@/src/ui/components';
+import { Empty, errText, ExportMenu, IconButton, useUi } from '@/src/ui/components';
 import { Icon } from '@/src/ui/icons';
 import { ut } from '@/src/ui/strings';
 import { ClipPane } from './ClipPane';
 import { BookList, ClipList, HighlightList, type BookSummary } from './Lists';
 import {
-  buildParams, filterClips, filterHighlights, parseParams, type LibraryState, type LibraryView,
+  buildParams, filterClips, filterHighlights, isWideView, parseParams, type LibraryState, type LibraryView,
 } from './logic';
+import { GraphView } from './GraphView';
+import { BoardView } from './BoardView';
+import { resolveWikilink } from './graph';
 import { Nav } from './Nav';
+import { highlightsForClip } from '@/src/highlight/apply';
+import { normalizeUrl } from '@/src/core/util';
 import { BookReader, HighlightPane } from './Panes';
 import { lt } from './strings';
 
@@ -30,12 +36,15 @@ export function App() {
   navRef.current = nav;
   const [projects, setProjects] = useState<Project[]>([]);
   const [clipMap, setClipMap] = useState<ClipMap>(new Map());
+  const [storedFolders, setStoredFolders] = useState<Map<string | null, string[]>>(new Map());
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [books, setBooks] = useState<BookSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState('');
   const [freshId, setFreshId] = useState<string | undefined>();
   const [editingTitle, setEditingTitle] = useState(false);
+  /** Highlight to reveal inside the note that is opened next. */
+  const [focusHl, setFocusHl] = useState<{ clip: string; id: string } | undefined>();
   const searchRef = useRef<HTMLInputElement>(null);
 
   const go = useCallback((patch: Partial<LibraryState>) => setNav((n) => ({ ...n, ...patch })), []);
@@ -49,10 +58,14 @@ export function App() {
         send('project/list'), send('highlight/listAll', {}), bookStore.list(),
       ]);
       const keys: (string | null)[] = [null, ...projs.map((x) => x.id)];
-      const lists = await Promise.all(keys.map((k) => send('clip/list', { projectId: k })));
+      const [lists, fl] = await Promise.all([
+        Promise.all(keys.map((k) => send('clip/list', { projectId: k }))),
+        Promise.all(keys.map((k) => folderStore.get(k))),
+      ]);
       if (mine !== seq.current) return; // a newer load is in flight
       setProjects(projs);
       setClipMap(new Map(keys.map((k, i) => [k, lists[i]!])));
+      setStoredFolders(new Map(keys.map((k, i) => [k, fl[i]!])));
       setHighlights(allHl.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
       setBooks(bks.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(({ chapters, ...rest }) => ({ ...rest, chapterCount: chapters.length })));
       if (navRef.current.project && !projs.some((x) => x.id === navRef.current.project)) {
@@ -78,6 +91,7 @@ export function App() {
 
   // ---- derived
   const clips = clipMap.get(nav.project) ?? [];
+  const projectFolders = useMemo(() => folderList(storedFolders.get(nav.project) ?? [], clips), [storedFolders, clips, nav.project]);
   const projectHighlights = useMemo(() => highlights.filter((h) => h.projectId === nav.project), [highlights, nav.project]);
   const clipCounts = useMemo(() => new Map([...clipMap].map(([k, v]) => [k, v.length])), [clipMap]);
   const shownClips = useMemo(() => filterClips(clips, query), [clips, query]);
@@ -87,7 +101,7 @@ export function App() {
 
   // Always have something selected when the list is not empty.
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || isWideView(nav.view)) return;
     const ids = nav.view === 'clips' ? clips.map((c) => c.id) : nav.view === 'highlights' ? projectHighlights.map((h) => h.id) : books.map((b) => b.id);
     if (nav.clip && ids.includes(nav.clip)) return;
     const first = ids[0];
@@ -126,17 +140,118 @@ export function App() {
     await load();
   });
 
-  const reorder = (ids: string[]) => run(async () => {
+  const reorder = (ids: string[], moved?: { id: string; section: string | undefined }) => run(async () => {
     const byId = new Map(clips.map((c) => [c.id, c]));
-    setClipMap((m) => new Map(m).set(nav.project, ids.map((id) => byId.get(id)!).filter(Boolean)));
+    setClipMap((m) => new Map(m).set(nav.project, ids.map((id, i) => {
+      const c = byId.get(id)!;
+      return c && { ...c, order: i, ...(moved?.id === id ? { section: moved.section } : {}) };
+    }).filter(Boolean)));
     try {
+      const c = moved && byId.get(moved.id);
+      if (c) await send('clip/update', { ...c, section: moved!.section });
       await send('clip/reorder', { projectId: nav.project, ids });
     } finally {
       await load();
     }
   });
 
+  // ---- folders (= clip.section) inside the current project
+  const saveFolders = async (list: string[]) => {
+    await folderStore.set(nav.project, list);
+    setStoredFolders((m) => new Map(m).set(nav.project, list));
+  };
+  const newFolder = () => run(async () => {
+    const name = folderName((await ui.prompt(lt('newFolder'), { placeholder: lt('folderName'), okLabel: ut('create') })) ?? '');
+    if (!name) return;
+    if (projectFolders.some((f) => f.toLowerCase() === name.toLowerCase())) return ui.toast(lt('folderExists'), true);
+    setView('clips');
+    await saveFolders([...projectFolders, name]);
+  });
+  const renameFolder = (from: string) => run(async () => {
+    const to = await ui.prompt(lt('renameFolder'), { value: from, okLabel: ut('save') });
+    if (to == null || folderName(to) === from) return;
+    const list = renameInList(projectFolders, from, to);
+    if (!list) return ui.toast(lt('folderExists'), true);
+    const name = folderName(to);
+    for (const c of clips.filter((x) => folderName(x.section).toLowerCase() === from.toLowerCase())) {
+      await send('clip/update', { ...c, section: name });
+    }
+    await saveFolders(list);
+    await load();
+  });
+  const deleteFolder = (name: string) => run(async () => {
+    const inside = clips.filter((x) => folderName(x.section).toLowerCase() === name.toLowerCase());
+    if (inside.length && !(await ui.confirm(lt('deleteFolder', { name }), { message: lt('deleteFolderMsg', { n: inside.length }), okLabel: ut('delete'), danger: true }))) return;
+    for (const c of inside) await send('clip/update', { ...c, section: undefined });
+    await saveFolders(projectFolders.filter((f) => f !== name));
+    await load();
+  });
+  const moveToFolder = (c: Clip, folder: string | null) => run(async () => {
+    await send('clip/update', { ...c, section: folder ?? undefined });
+    ui.toast(lt('movedToFolder', { name: folder ?? lt('noFolder') }));
+    await load();
+  });
+
   const jump = (h: Highlight) => run(() => send('highlight/open', { id: h.id }));
+
+  // Saved note of a highlight's page: same project first, then any other.
+  const pageClips = useMemo(() => {
+    const m = new Map<string, Clip[]>();
+    for (const list of clipMap.values()) {
+      for (const c of list) {
+        if (!c.source.url) continue;
+        const k = normalizeUrl(c.source.url);
+        m.set(k, [...(m.get(k) ?? []), c]);
+      }
+    }
+    return m;
+  }, [clipMap]);
+  const noteOf = (h: Highlight): Clip | undefined => {
+    const list = pageClips.get(h.url) ?? [];
+    return list.find((c) => c.projectId === h.projectId && c.kind === 'page') ?? list.find((c) => c.projectId === h.projectId)
+      ?? list.find((c) => c.kind === 'page') ?? list[0];
+  };
+  const openNote = (h: Highlight, c: Clip) => {
+    setQuery('');
+    setFocusHl({ clip: c.id, id: h.id });
+    go({ project: c.projectId, view: 'clips', clip: c.id });
+  };
+
+  const allClips = useMemo(() => [...clipMap.values()].flat(), [clipMap]);
+  const openClip = (c: Clip) => { setQuery(''); go({ project: c.projectId, view: 'clips', clip: c.id }); };
+  const openLink = (title: string) => {
+    const c = resolveWikilink(title, allClips, nav.project);
+    if (c) openClip(c);
+    else ui.toast(lt('linkNotFound', { title }), true);
+  };
+  const searchTag = (tag: string) => { setQuery(`#${tag}`); go({ view: 'clips', clip: undefined }); };
+
+  const moveCardTo = (c: Clip, status: string, ids: string[]) => run(async () => {
+    const byId = new Map(clips.map((x) => [x.id, x]));
+    // Optimistic: show the new column/order at once, then persist.
+    setClipMap((m) => new Map(m).set(nav.project, ids.map((id, i) => ({ ...byId.get(id)!, order: i, ...(id === c.id ? { status } : {}) }))));
+    try {
+      if (c.status !== status) await send('clip/update', { ...c, status });
+      await send('clip/reorder', { projectId: nav.project, ids });
+    } finally {
+      await load();
+    }
+  });
+  const createCard = (column: string, title: string, text: string) => run(async () => {
+    await send('clip/create', { projectId: nav.project, title, markdown: text, status: column });
+    await load();
+  });
+
+  const columnRemoved = (moved: Clip[], fallback: string) => run(async () => {
+    for (const c of moved) await send('clip/update', { ...c, status: fallback });
+    await load();
+  });
+
+  const moveHighlight = (h: Highlight, projectId: string | null, name: string) => run(async () => {
+    await send('highlight/move', { id: h.id, projectId });
+    ui.toast(lt('moved', { name }));
+    await load();
+  });
 
   const deleteHighlight = (h: Highlight) => run(async () => {
     if (!(await ui.confirm(lt('deleteHighlight'), { message: lt('deleteHighlightMsg'), okLabel: ut('delete'), danger: true }))) return;
@@ -204,18 +319,20 @@ export function App() {
   if (!loaded) {
     listBody = <Empty icon="note" title={lt('loading')} />;
   } else if (nav.view === 'clips') {
-    listBody = !clips.length
+    listBody = !clips.length && !projectFolders.length
       ? <Empty icon="note" title={lt('emptyClips')} text={lt('emptyClipsText')} />
       : !shownClips.length
         ? <Empty icon="search" title={lt('emptySearch')} text={lt('emptySearchText')} />
-        : <ClipList clips={shownClips} projects={projects} selected={nav.clip} canReorder={!searching}
-          onSelect={(id) => go({ clip: id })} onMove={moveClip} onDelete={deleteClip} onReorder={reorder} />;
+        : <ClipList clips={shownClips} projects={projects} folders={projectFolders} selected={nav.clip} canReorder={!searching}
+          hideEmptyFolders={searching} onSelect={(id) => go({ clip: id })} onMove={moveClip} onDelete={deleteClip} onReorder={reorder}
+          onRenameFolder={renameFolder} onDeleteFolder={deleteFolder} />;
   } else if (nav.view === 'highlights') {
     listBody = !projectHighlights.length
       ? <Empty icon="highlighter" title={lt('emptyHighlights')} text={lt('emptyHighlightsText')} />
       : !shownHl.length
         ? <Empty icon="search" title={lt('emptySearch')} text={lt('emptySearchText')} />
-        : <HighlightList items={shownHl} selected={nav.clip} onSelect={(id) => go({ clip: id })} onJump={jump} onDelete={deleteHighlight} />;
+        : <HighlightList items={shownHl} projects={projects} selected={nav.clip} onSelect={(id) => go({ clip: id })} onJump={jump}
+          onDelete={deleteHighlight} onMove={moveHighlight} noteOf={noteOf} onOpenNote={openNote} />;
   } else {
     listBody = !books.length
       ? <Empty icon="book" title={lt('noBooks')} text={lt('noBooksText')} />
@@ -226,9 +343,13 @@ export function App() {
   let detail: ComponentChildren;
   if (selectedClip) {
     detail = <ClipPane key={selectedClip.id} clip={selectedClip} projects={projects} fresh={selectedClip.id === freshId}
+      highlights={highlightsForClip(selectedClip, highlights)} onOpenLink={openLink}
+      folders={projectFolders} onMoveToFolder={(f) => void moveToFolder(selectedClip, f)}
+      focusHighlight={focusHl?.clip === selectedClip.id ? focusHl.id : undefined}
       onDelete={() => void deleteClip(selectedClip)} />;
   } else if (selectedHl) {
-    detail = <HighlightPane h={selectedHl} onJump={jump} onDelete={deleteHighlight} />;
+    detail = <HighlightPane key={selectedHl.id} h={selectedHl} projects={projects} note={noteOf(selectedHl)} onJump={jump} onDelete={deleteHighlight}
+      onMove={moveHighlight} onOpenNote={openNote} />;
   } else if (nav.view === 'books' && nav.clip) {
     detail = <BookReader bookId={nav.clip} />;
   } else {
@@ -241,8 +362,13 @@ export function App() {
     );
   }
 
+  const wide = isWideView(nav.view);
+  const tab = (v: LibraryView, label: string) => (
+    <button type="button" role="tab" aria-selected={nav.view === v} class={nav.view === v ? 'on' : ''} onClick={() => setView(v)}>{label}</button>
+  );
+
   return (
-    <div class="lib">
+    <div class={`lib ${wide ? 'wide' : ''}`}>
       <Nav projects={projects} counts={clipCounts} books={books} activeProject={nav.project} booksActive={nav.view === 'books'}
         activeBook={nav.view === 'books' ? nav.clip : undefined} query={query} onQuery={setQuery} searchRef={searchRef}
         onSelectProject={selectProject} onRename={renameProject} onDelete={deleteProject} onNewProject={newProject}
@@ -264,24 +390,35 @@ export function App() {
           {nav.view !== 'books' && (
             <>
               <div class="segmented tabs" role="tablist">
-                <button type="button" role="tab" aria-selected={nav.view === 'clips'} class={nav.view === 'clips' ? 'on' : ''}
-                  onClick={() => setView('clips')}>{lt('notes')} ({clips.length})</button>
-                <button type="button" role="tab" aria-selected={nav.view === 'highlights'} class={nav.view === 'highlights' ? 'on' : ''}
-                  onClick={() => setView('highlights')}>{lt('highlights')} ({projectHighlights.length})</button>
+                {tab('clips', `${lt('notes')} (${clips.length})`)}
+                {tab('highlights', `${lt('highlights')} (${projectHighlights.length})`)}
+                {tab('graph', lt('graph'))}
+                {tab('board', lt('board'))}
               </div>
               <div class="list-toolbar">
                 <button type="button" class="btn primary sm" onClick={() => void newNote()}><Icon name="plus" size={14} />{lt('newNote')}</button>
+                <IconButton icon="folderPlus" title={lt('newFolder')} onClick={() => void newFolder()} />
                 <span class="grow" />
-                <ExportMenu subject={{ kind: 'project', projectId: nav.project }} extra={{ kind: 'highlights', projectId: nav.project }}
+                {nav.view === 'board' && (
+                  <ExportMenu subject={{ kind: 'board', projectId: nav.project }} label={lt('exportBoard')} placement="down" align="right" />
+                )}
+                <ExportMenu label={lt('exportProjectBtn')} subject={{ kind: 'project', projectId: nav.project }} extra={{ kind: 'highlights', projectId: nav.project }} extraFormats={['anki-tsv']}
                   placement="down" align="right" />
               </div>
             </>
           )}
         </header>
-        <div class="list-body">{listBody}</div>
+        {!wide && <div class="list-body">{listBody}</div>}
+        {nav.view === 'graph' && (
+          <GraphView projectClips={clips} allClips={allClips} projects={projects} onOpen={openClip} onTag={searchTag} />
+        )}
+        {nav.view === 'board' && (
+          <BoardView projectId={nav.project} clips={clips} highlights={highlights} onOpen={openClip}
+            onMove={moveCardTo} onColumnRemoved={columnRemoved} onCreate={createCard} onDelete={(c) => void deleteClip(c)} />
+        )}
       </section>
 
-      <main class="detail">{detail}</main>
+      {!wide && <main class="detail">{detail}</main>}
     </div>
   );
 }

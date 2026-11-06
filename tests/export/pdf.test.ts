@@ -21,7 +21,7 @@ describe('runPdfExport', () => {
   it('saves with the expected page settings and closes the tab', async () => {
     const { deps, log, saved } = fakeDeps();
     await runPdfExport(deps, opts);
-    expect(saved[0]).toMatchObject({ toFileName: 'Doc.pdf', shrinkToFit: true, showBackgroundColors: false });
+    expect(saved[0]).toMatchObject({ toFileName: 'Doc.pdf', shrinkToFit: true, showBackgroundColors: true });
     expect(log).toEqual([`open ${opts.url}`, 'close 7']);
   });
   it('treats replaced as success and canceled as a silent no-op', async () => {

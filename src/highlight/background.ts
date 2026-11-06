@@ -7,7 +7,7 @@ import { normalizeUrl, nowIso } from '@/src/core/util';
 import { colorHex, orderedPalette } from '@/src/core/colors';
 import { t } from './strings';
 
-const MENU_SELECTION = 'tn-hl-selection';
+export const MENU_HIGHLIGHT = 'tn-hl-selection';
 const LOAD_TIMEOUT_MS = 20000;
 const SEND_ATTEMPTS = 3;
 const SEND_RETRY_MS = 500;
@@ -127,9 +127,12 @@ export function createHighlightHandlers(): Handlers<BackgroundMessages> {
       if (existing) {
         // Existing highlights keep their creation date and project; only content/color/note change.
         saved = { ...h, createdAt: existing.createdAt, projectId: existing.projectId, updatedAt: now };
+        // The long note is edited only in the Library; a page's (possibly stale) copy must never overwrite it.
+        if (page) saved.body = existing.body;
       } else {
         const projectId = h.projectId ?? (await settings.get()).defaultProjectId;
         saved = { ...h, projectId, createdAt: now, updatedAt: now };
+        if (page) delete saved.body;
       }
       await highlights.put(saved);
       broadcast('data/changed', { kind: 'highlight' });
@@ -143,6 +146,16 @@ export function createHighlightHandlers(): Handlers<BackgroundMessages> {
       return { colors: orderedPalette(s.highlightPalette, s.highlightColor), defaultColor: colorHex(s.highlightColor) };
     },
 
+    'highlight/move': async ({ id, projectId }, sender) => {
+      if (isFromWebPage(sender)) throw new Error('Not allowed from a web page');
+      const h = await highlights.get(id);
+      if (!h) throw new Error(t('unknownHighlight'));
+      const saved = { ...h, projectId, updatedAt: nowIso() };
+      await highlights.put(saved);
+      broadcast('data/changed', { kind: 'highlight' });
+      return saved;
+    },
+
     'highlight/delete': async ({ id }, sender) => {
       const page = senderPage(sender);
       if (page && (await highlights.get(id))?.url !== page) throw new Error('Highlight belongs to another page');
@@ -154,13 +167,13 @@ export function createHighlightHandlers(): Handlers<BackgroundMessages> {
 
 /** Called once from entrypoints/background.ts. Register menus/commands here; return message handlers. */
 export function createHighlightMenus(): void {
-  browser.contextMenus.create({ id: MENU_SELECTION, title: t('menuHighlight'), contexts: ['selection'] });
+  browser.contextMenus.create({ id: MENU_HIGHLIGHT, title: t('menuHighlight'), contexts: ['selection'] });
 }
 
 export function setupHighlightBackground(): Handlers<BackgroundMessages> {
 
   browser.contextMenus.onClicked.addListener(async (info, tab) => {
-    if (info.menuItemId !== MENU_SELECTION || tab?.id == null) return;
+    if (info.menuItemId !== MENU_HIGHLIGHT || tab?.id == null) return;
     try {
       const { highlightColor } = await settings.get();
       await sendToTab(tab.id, 'content/highlightSelection', { color: highlightColor });

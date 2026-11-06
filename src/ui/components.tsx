@@ -1,6 +1,6 @@
 // Shared Preact UI components for extension pages (popup, sidepanel, library, crawler, options).
 import { createContext, type ComponentChildren } from 'preact';
-import { useCallback, useContext, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { browser } from 'wxt/browser';
 import { send } from '@/src/core/messages';
 import type { ExportFormat, Project } from '@/src/core/types';
@@ -27,7 +27,11 @@ export function IconButton(p: {
 
 // ---------- Menu (dropdown)
 
-export interface MenuItem { label: string; hint?: string; icon?: IconName; onSelect: () => void; separatorBefore?: boolean }
+export interface MenuItem {
+  label: string; hint?: string; icon?: IconName; onSelect: () => void; separatorBefore?: boolean;
+  /** Small group caption shown above this item. */
+  section?: string;
+}
 
 export function Menu(p: {
   trigger: (open: () => void, isOpen: boolean) => ComponentChildren; items: MenuItem[];
@@ -51,6 +55,7 @@ export function Menu(p: {
           {p.items.map((it) => (
             <>
               {it.separatorBefore && <div class="menu-sep" />}
+              {it.section && <div class="menu-section" role="presentation">{it.section}</div>}
               <button type="button" class="menu-item" role="menuitem" onClick={() => { setOpen(false); it.onSelect(); }}>
                 {it.icon && <Icon name={it.icon} />}
                 <span>{it.label}{it.hint && <span class="hint">{it.hint}</span>}</span>
@@ -86,7 +91,9 @@ export function UiProvider({ children }: { children: ComponentChildren }) {
     setToasts((t) => [...t, { id, text, error }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), error ? 5000 : 2200);
   }, []);
-  const api: UiApi = {
+  // Stable identity: pages put `ui` in effect/callback deps; a new object per render made a failing load
+  // re-run forever (error → toast → re-render → new ui → load again).
+  const api = useMemo<UiApi>(() => ({
     toast,
     prompt: (title, o = {}) => new Promise((resolve) => setDialog({
       title, input: { value: o.value ?? '', placeholder: o.placeholder }, okLabel: o.okLabel ?? ut('save'),
@@ -95,7 +102,7 @@ export function UiProvider({ children }: { children: ComponentChildren }) {
     confirm: (title, o = {}) => new Promise((resolve) => setDialog({
       title, message: o.message, okLabel: o.okLabel ?? ut('confirm'), danger: o.danger, resolve: (v) => resolve(v === true),
     })),
-  };
+  }), [toast]);
   return (
     <UiCtx.Provider value={api}>
       {children}
@@ -195,6 +202,7 @@ export type ExportSubject =
   | { kind: 'clip'; id: string }
   | { kind: 'project'; projectId: string | null }
   | { kind: 'book'; id: string }
+  | { kind: 'board'; projectId: string | null }
   | { kind: 'highlights'; projectId?: string | null; url?: string };
 
 const OPTIONS: Record<ExportSubject['kind'], { format: ExportFormat; label: () => string; hint: () => string; icon: IconName }[]> = {
@@ -203,10 +211,14 @@ const OPTIONS: Record<ExportSubject['kind'], { format: ExportFormat; label: () =
     { format: 'md-zip', label: () => ut('exportZip'), hint: () => ut('exportZipHint'), icon: 'layers' },
     { format: 'pdf', label: () => ut('exportPdf'), hint: () => ut('exportPdfHint'), icon: 'book' },
   ],
+  // Whole project only: single notes are exported from the note itself.
   project: [
-    { format: 'md', label: () => ut('exportMd'), hint: () => ut('exportMdHint'), icon: 'file' },
-    { format: 'md-zip', label: () => ut('exportZip'), hint: () => ut('exportZipHint'), icon: 'layers' },
-    { format: 'pdf', label: () => ut('exportPdf'), hint: () => ut('exportPdfHint'), icon: 'book' },
+    { format: 'md-folder-zip', label: () => ut('exportProject'), hint: () => ut('exportProjectHint'), icon: 'folder' },
+    { format: 'pdf-zip', label: () => ut('exportProjectPdf'), hint: () => ut('exportProjectPdfHint'), icon: 'book' },
+  ],
+  board: [
+    { format: 'md', label: () => ut('exportBoardMd'), hint: () => ut('exportBoardMdHint'), icon: 'file' },
+    { format: 'pdf', label: () => ut('exportPdf'), hint: () => ut('exportBoardPdfHint'), icon: 'book' },
   ],
   book: [
     { format: 'pdf', label: () => ut('exportPdf'), hint: () => ut('exportPdfHint'), icon: 'book' },
@@ -215,7 +227,7 @@ const OPTIONS: Record<ExportSubject['kind'], { format: ExportFormat; label: () =
   ],
   highlights: [
     { format: 'md', label: () => ut('exportHlMd'), hint: () => ut('exportHlMdHint'), icon: 'highlighter' },
-    { format: 'pdf', label: () => ut('exportPdf'), hint: () => ut('exportPdfHint'), icon: 'book' },
+    { format: 'pdf', label: () => ut('exportHlPdf'), hint: () => ut('exportHlPdfHint'), icon: 'book' },
     { format: 'anki-tsv', label: () => ut('exportAnki'), hint: () => ut('exportAnkiHint'), icon: 'layers' },
   ],
 };
@@ -223,15 +235,22 @@ const OPTIONS: Record<ExportSubject['kind'], { format: ExportFormat; label: () =
 export async function runExport(subject: ExportSubject, format: ExportFormat): Promise<void> {
   switch (subject.kind) {
     case 'clip': return send('export/clip', { id: subject.id, format });
-    case 'project': return send('export/project', { projectId: subject.projectId, format });
+    case 'project':
+      // Built here (lazy chunk), not in the background; see src/export/pdfzip.ts.
+      if (format === 'pdf-zip') return (await import('@/src/export/pdfzip')).exportProjectPdfZip(subject.projectId);
+      return send('export/project', { projectId: subject.projectId, format });
     case 'book': return send('export/book', { id: subject.id, format });
+    case 'board': return send('export/board', { projectId: subject.projectId, format: format === 'pdf' ? 'pdf' : 'md' });
     case 'highlights': return send('export/highlights', { projectId: subject.projectId, url: subject.url, format });
   }
 }
 
 /** "Export ▾" button. `extra` adds e.g. highlight exports to a project menu. */
 export function ExportMenu(p: {
-  subject: ExportSubject; extra?: ExportSubject; placement?: 'up' | 'down'; align?: 'left' | 'right';
+  subject: ExportSubject; extra?: ExportSubject;
+  /** Only these formats of `extra` (e.g. just Anki for highlights). */
+  extraFormats?: ExportFormat[];
+  placement?: 'up' | 'down'; align?: 'left' | 'right';
   variant?: 'primary' | 'default' | 'icon'; label?: string;
 }) {
   const ui = useUi();
@@ -247,12 +266,17 @@ export function ExportMenu(p: {
       setBusy(false);
     }
   };
-  const items: MenuItem[] = OPTIONS[p.subject.kind].map((o) => ({
+  // With an extra group the menu gets captions, so the two groups (whole project vs. highlights only) can't be confused.
+  const caption = (k: ExportSubject['kind']) => (k === 'highlights' ? ut('menuHighlightsOnly') : k === 'project' ? ut('menuProjectAll') : undefined);
+  const extraOptions = p.extra ? OPTIONS[p.extra.kind].filter((o) => !p.extraFormats || p.extraFormats.includes(o.format)) : [];
+  const items: MenuItem[] = OPTIONS[p.subject.kind].map((o, i) => ({
     label: o.label(), hint: o.hint(), icon: o.icon, onSelect: () => void go(p.subject, o.format),
+    section: p.extra && i === 0 ? caption(p.subject.kind) : undefined,
   }));
   if (p.extra) {
-    OPTIONS[p.extra.kind].forEach((o, i) => items.push({
-      label: o.label(), hint: o.hint(), icon: o.icon, separatorBefore: i === 0, onSelect: () => void go(p.extra!, o.format),
+    extraOptions.forEach((o, i) => items.push({
+      label: o.label(), hint: o.hint(), icon: o.icon, separatorBefore: i === 0, section: i === 0 ? caption(p.extra!.kind) : undefined,
+      onSelect: () => void go(p.extra!, o.format),
     }));
   }
   return (

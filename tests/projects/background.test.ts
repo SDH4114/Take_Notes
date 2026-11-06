@@ -170,4 +170,11 @@ describe('clip editing', () => {
     const same = (await call('clip/update', { ...u, note: 'n' })) as Clip;
     expect(same.html).toBe(u.html);
   });
+
+  it('clip/create puts a board card into the requested column (no status = first column)', async () => {
+    const card = (await call('clip/create', { projectId: null, title: 'Card', markdown: 'text', status: 'doing' })) as Clip;
+    expect((await clips.get(card.id))?.status).toBe('doing');
+    const plain = (await call('clip/create', { projectId: null, title: 'Plain' })) as Clip;
+    expect('status' in (await clips.get(plain.id))!).toBe(false);
+  });
 });

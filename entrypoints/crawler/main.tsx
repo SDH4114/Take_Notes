@@ -3,6 +3,7 @@ import { render } from 'preact';
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import { browser } from 'wxt/browser';
 import '@/src/ui/base.css';
+import { initTheme } from '@/src/ui/theme';
 import './style.css';
 import { onBroadcast, send, sendToTab } from '@/src/core/messages';
 import { translator } from '@/src/core/i18n';
@@ -12,6 +13,8 @@ import { scopePrefix } from '@/src/crawl/toc';
 import { strings } from '@/src/crawl/strings';
 import { ExportMenu, IconButton, UiProvider, errText, useUi } from '@/src/ui/components';
 import { Icon } from '@/src/ui/icons';
+
+initTheme();
 
 const t = translator(strings);
 type BookInfo = Omit<Book, 'chapters'>;

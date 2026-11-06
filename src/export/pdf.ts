@@ -20,10 +20,10 @@ export interface PdfDeps {
   dispose?(): void;
 }
 
-export interface PdfOptions { url: string; filename: string; lang?: Lang }
+export interface PdfOptions { url: string; filename: string; lang?: Lang; landscape?: boolean }
 
 /** Orchestration, independent of the browser APIs (see browserPdfDeps for the real ones). */
-export async function runPdfExport(deps: PdfDeps, { url, filename, lang = uiLang() }: PdfOptions): Promise<void> {
+export async function runPdfExport(deps: PdfDeps, { url, filename, lang = uiLang(), landscape = false }: PdfOptions): Promise<void> {
   const t = exportT(lang);
   const tabId = await deps.openTab(url);
   let keepOpen = false;
@@ -44,8 +44,9 @@ export async function runPdfExport(deps: PdfDeps, { url, filename, lang = uiLang
     }
     const status = await deps.saveAsPDF({
       toFileName: filename,
+      orientation: landscape ? 1 : 0,
       shrinkToFit: true,
-      showBackgroundColors: false,
+      showBackgroundColors: true, // highlight marks are backgrounds
       showBackgroundImages: false,
       headerLeft: '', headerCenter: '', headerRight: '',
       footerLeft: '', footerCenter: '&P / &PT', footerRight: '',
@@ -105,7 +106,8 @@ export function browserPdfDeps(timeoutMs = 90_000): PdfDeps {
 export async function exportPdf(kind: PrintKind, id: string, filename: string, lang: Lang = uiLang()): Promise<void> {
   const deps = browserPdfDeps();
   try {
-    await runPdfExport(deps, { url: printPath(kind, id), filename, lang });
+    // The board is wide: columns side by side.
+    await runPdfExport(deps, { url: printPath(kind, id), filename, lang, landscape: kind === 'board' });
   } finally {
     deps.dispose?.(); // also covers a failed openTab, which never reaches closeTab
   }

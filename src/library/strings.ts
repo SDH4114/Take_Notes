@@ -9,7 +9,15 @@ type K =
   | 'titlePlaceholder' | 'saved' | 'saving' | 'saveFailed' | 'kindPage' | 'kindSelection' | 'kindTranscript'
   | 'kindChapter' | 'kindNote' | 'goToSpot' | 'chapters' | 'noBooks' | 'noBooksText' | 'pickBook' | 'pickChapter'
   | 'loading' | 'editHint' | 'emptyNoteBody' | 'noteInHighlight' | 'color'
-  | 'bookChapters' | 'newNoteTitle' | 'clipDeleted';
+  | 'bookChapters' | 'newNoteTitle' | 'clipDeleted' | 'openNote' | 'noNoteForHl' | 'hlNotInNote'
+  | 'tags' | 'addTags' | 'graph' | 'board' | 'graphProject' | 'graphAll' | 'graphTags' | 'graphHint' | 'graphReset'
+  | 'graphEmpty' | 'graphEmptyText' | 'linkNotFound' | 'colTodo' | 'colDoing' | 'colDone' | 'newColumn' | 'columnName'
+  | 'renameColumn' | 'deleteColumn' | 'deleteColumnMsg' | 'dropHere'
+  | 'newCard' | 'addCard' | 'cardTitle' | 'cardText' | 'deleteCard'
+  | 'hlShortNote' | 'hlShortPlaceholder' | 'hlLongNote' | 'hlLongHint' | 'hlLongEmpty'
+  | 'folders' | 'newFolder' | 'folderName' | 'noFolder' | 'renameFolder' | 'deleteFolder' | 'deleteFolderMsg'
+  | 'moveToFolder' | 'folderExists' | 'movedToFolder' | 'emptyFolder' | 'exportBoard' | 'exportProjectBtn'
+  | 'markDone' | 'markUndone' | 'doneColumnOn' | 'doneColumnSet' | 'collectDone';
 
 export const libraryStrings: Dict<K> = {
   ru: {
@@ -28,6 +36,32 @@ export const libraryStrings: Dict<K> = {
     emptyHighlightsText: 'Выделите текст на сайте и выберите цвет маркера — выделение сохранится и появится здесь.',
     pickClip: 'Выберите заметку', pickClipText: 'Откройте её из списка слева или создайте новую.',
     pickHighlight: 'Выберите хайлайт',
+    openNote: 'Открыть заметку', noNoteForHl: 'Страница этого хайлайта не сохранена как заметка.',
+    hlNotInNote: 'Текст хайлайта не найден в заметке (возможно, его отредактировали).',
+    tags: 'Теги', addTags: 'Добавить теги…',
+    graph: 'Граф', board: 'Доска', graphProject: 'Этот проект', graphAll: 'Все проекты', graphTags: 'Теги',
+    graphHint: 'Колесо — масштаб, перетаскивание — сдвиг, клик — открыть',
+    graphReset: 'Сбросить вид',
+    graphEmpty: 'Пока нечего показать',
+    graphEmptyText: 'Связи появляются из ссылок [[Название заметки]] в тексте и общих тегов (#тег или поле «Теги»).',
+    linkNotFound: 'Заметка «{title}» не найдена',
+    colTodo: 'Прочитать', colDoing: 'В работе', colDone: 'Готово',
+    newColumn: 'Новая колонка', columnName: 'Название колонки', renameColumn: 'Переименовать колонку',
+    deleteColumn: 'Удалить колонку «{name}»?', deleteColumnMsg: 'Карточки ({n}) перейдут в «{to}».',
+    dropHere: 'Перетащите сюда заметку',
+    hlShortNote: 'Короткая заметка', hlShortPlaceholder: 'Видна на сайте рядом с выделением',
+    hlLongNote: 'Большая заметка', hlLongHint: 'Markdown, видна только в расширении и в экспорте',
+    hlLongEmpty: 'Пусто. Дважды щёлкните или выберите «Правка», чтобы написать.',
+    folders: 'Папки', newFolder: 'Новая папка', folderName: 'Название папки', noFolder: 'Без папки',
+    renameFolder: 'Переименовать папку', deleteFolder: 'Удалить папку «{name}»?',
+    deleteFolderMsg: 'Заметки ({n}) не удалятся — они останутся в проекте без папки.',
+    moveToFolder: 'Переместить в папку', folderExists: 'Такая папка уже есть', movedToFolder: 'Перемещено в «{name}»',
+    emptyFolder: 'Пустая папка — перетащите сюда заметку', exportBoard: 'Скачать доску', exportProjectBtn: 'Скачать проект',
+    markDone: 'Выполнено', markUndone: 'Вернуть в работу',
+    doneColumnOn: 'Сюда попадают выполненные карточки', doneColumnSet: 'Собирать выполненные в этой колонке',
+    collectDone: 'Сюда собираются выполненные карточки',
+    newCard: 'Добавить карточку', addCard: 'Добавить', cardTitle: 'Название карточки',
+    cardText: 'Текст (необязательно). Ctrl/⌘+Enter — добавить', deleteCard: 'Удалить карточку',
     modeView: 'Просмотр', modeEdit: 'Редактор', modeSplit: 'Рядом',
     myNote: 'Моя заметка', notePlaceholder: 'Мысли, вопросы, к чему это относится…', titlePlaceholder: 'Заголовок',
     saved: 'Сохранено', saving: 'Сохраняю…', saveFailed: 'Не удалось сохранить',
@@ -54,6 +88,32 @@ export const libraryStrings: Dict<K> = {
     emptyHighlightsText: 'Select text on a site and pick a marker color — the highlight is saved and shows up here.',
     pickClip: 'Select a note', pickClipText: 'Open one from the list or create a new one.',
     pickHighlight: 'Select a highlight',
+    openNote: 'Open note', noNoteForHl: 'The page of this highlight is not saved as a note.',
+    hlNotInNote: 'The highlighted text was not found in the note (it may have been edited).',
+    tags: 'Tags', addTags: 'Add tags…',
+    graph: 'Graph', board: 'Board', graphProject: 'This project', graphAll: 'All projects', graphTags: 'Tags',
+    graphHint: 'Wheel: zoom, drag: pan, click: open',
+    graphReset: 'Reset view',
+    graphEmpty: 'Nothing to show yet',
+    graphEmptyText: 'Links come from [[Note title]] in the text and shared tags (#tag or the Tags field).',
+    linkNotFound: 'Note "{title}" not found',
+    colTodo: 'To read', colDoing: 'In progress', colDone: 'Done',
+    newColumn: 'New column', columnName: 'Column name', renameColumn: 'Rename column',
+    deleteColumn: 'Delete column "{name}"?', deleteColumnMsg: '{n} card(s) will move to "{to}".',
+    dropHere: 'Drop a note here',
+    hlShortNote: 'Short note', hlShortPlaceholder: 'Shown on the site next to the highlight',
+    hlLongNote: 'Long note', hlLongHint: 'Markdown, only in the extension and in exports',
+    hlLongEmpty: 'Empty. Double-click or choose Edit to write.',
+    folders: 'Folders', newFolder: 'New folder', folderName: 'Folder name', noFolder: 'No folder',
+    renameFolder: 'Rename folder', deleteFolder: 'Delete folder "{name}"?',
+    deleteFolderMsg: '{n} note(s) are kept: they stay in the project without a folder.',
+    moveToFolder: 'Move to folder', folderExists: 'This folder already exists', movedToFolder: 'Moved to "{name}"',
+    emptyFolder: 'Empty folder: drop a note here', exportBoard: 'Download board', exportProjectBtn: 'Download project',
+    markDone: 'Mark as done', markUndone: 'Mark as not done',
+    doneColumnOn: 'Completed cards go here', doneColumnSet: 'Collect completed cards in this column',
+    collectDone: 'Collect completed cards here',
+    newCard: 'Add a card', addCard: 'Add', cardTitle: 'Card title',
+    cardText: 'Text (optional). Ctrl/⌘+Enter to add', deleteCard: 'Delete card',
     modeView: 'Read', modeEdit: 'Edit', modeSplit: 'Split',
     myNote: 'My note', notePlaceholder: 'Thoughts, questions, what this relates to…', titlePlaceholder: 'Title',
     saved: 'Saved', saving: 'Saving…', saveFailed: 'Could not save',

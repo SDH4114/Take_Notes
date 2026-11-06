@@ -3,6 +3,7 @@ import { render } from 'preact';
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import { browser } from 'wxt/browser';
 import '@/src/ui/base.css';
+import { initTheme } from '@/src/ui/theme';
 import './style.css';
 import { formatBibliography } from '@/src/cite';
 import { onBroadcast, send } from '@/src/core/messages';
@@ -16,6 +17,8 @@ import {
 import { Icon, type IconName } from '@/src/ui/icons';
 import { renderMarkdown } from '@/src/ui/markdown';
 import { colorHex } from '@/src/core/colors';
+
+initTheme();
 
 const KIND_ICON: Record<Clip['kind'], IconName> = { page: 'globe', selection: 'scissors', transcript: 'video', chapter: 'book' };
 
@@ -264,7 +267,7 @@ function App() {
         <Bibliography sources={sources} style={style} />
         <ExportMenu
           variant="primary" placement="up" align="left"
-          subject={{ kind: 'project', projectId }} extra={{ kind: 'highlights', projectId }}
+          subject={{ kind: 'project', projectId }} extra={{ kind: 'highlights', projectId }} extraFormats={['anki-tsv']}
         />
       </footer>
     </div>

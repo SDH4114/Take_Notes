@@ -1,7 +1,7 @@
 // IndexedDB persistence. Usable from background and extension pages (same origin).
 // Content scripts must go through background messages instead.
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Asset, Book, Clip, Highlight, Project, Settings } from './types';
+import type { Asset, BoardColumn, Book, Clip, Highlight, Project, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
 import { colorHex, normalizePalette } from './colors';
 
@@ -103,6 +103,28 @@ export const books = {
   async get(id: string) { return (await db()).get('books', id); },
   async put(b: Book) { await (await db()).put('books', b); return b; },
   async delete(id: string) { await (await db()).delete('books', id); },
+};
+
+// ---- kanban boards (columns per project; Inbox included). null = never customized.
+export const boards = {
+  async get(projectId: string | null): Promise<BoardColumn[] | null> {
+    const v = (await (await db()).get('kv', `board:${pk(projectId)}`)) as BoardColumn[] | undefined;
+    return Array.isArray(v) && v.length ? v : null;
+  },
+  async set(projectId: string | null, columns: BoardColumn[]): Promise<void> {
+    await (await db()).put('kv', columns, `board:${pk(projectId)}`);
+  },
+};
+
+// ---- folders inside a project (= Clip.section). Stored so empty folders and their order survive.
+export const folders = {
+  async get(projectId: string | null): Promise<string[]> {
+    const v = (await (await db()).get('kv', `folders:${pk(projectId)}`)) as string[] | undefined;
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()) : [];
+  },
+  async set(projectId: string | null, names: string[]): Promise<void> {
+    await (await db()).put('kv', names, `folders:${pk(projectId)}`);
+  },
 };
 
 // ---- settings

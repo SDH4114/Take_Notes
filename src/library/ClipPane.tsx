@@ -2,7 +2,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { send } from '@/src/core/messages';
 import { clips as clipStore } from '@/src/core/storage';
-import type { Clip, Project } from '@/src/core/types';
+import type { Clip, Highlight, Project } from '@/src/core/types';
+import { markHighlightsInHtml } from '@/src/highlight/apply';
+import { normTag } from './graph';
+import { folderName } from './folders';
 import { domainOf, ExportMenu, errText, IconButton, Menu, useUi } from '@/src/ui/components';
 import { MarkdownEditor, type EditorApi } from '@/src/ui/editor';
 import { Icon } from '@/src/ui/icons';
@@ -40,10 +43,19 @@ interface Draft { title: string; markdown: string; note: string }
 const draftOf = (c: Clip): Draft => ({ title: c.title, markdown: c.markdown, note: c.note ?? '' });
 type Status = 'saved' | 'saving' | 'error';
 
-/** Rendered markdown; a double click switches to the editor. */
-function Preview(p: { html: string; empty: boolean; onEdit: () => void; scrollRef?: (el: HTMLDivElement | null) => void; onScroll?: () => void }) {
+/** Rendered markdown; a double click switches to the editor, a click on [[link]] opens that note. */
+function Preview(p: {
+  html: string; empty: boolean; onEdit: () => void; scrollRef?: (el: HTMLDivElement | null) => void; onScroll?: () => void;
+  onLink?: (title: string) => void;
+}) {
+  const onClick = (e: MouseEvent) => {
+    const a = (e.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a.wikilink');
+    if (!a) return;
+    e.preventDefault();
+    p.onLink?.(a.dataset.wikilink ?? '');
+  };
   return (
-    <div class="preview-scroll" ref={p.scrollRef} onScroll={p.onScroll} onDblClick={p.onEdit} title={lt('editHint')}>
+    <div class="preview-scroll" ref={p.scrollRef} onScroll={p.onScroll} onDblClick={p.onEdit} onClick={onClick} title={lt('editHint')}>
       {p.empty
         ? <p class="muted reading">{lt('emptyNoteBody')}</p>
         // renderMarkdown output is sanitized with DOMPurify
@@ -52,10 +64,19 @@ function Preview(p: { html: string; empty: boolean; onEdit: () => void; scrollRe
   );
 }
 
-/** `fresh`: just created, so open straight in the editor (without changing the remembered mode). */
-export function ClipPane(p: { clip: Clip; projects: Project[]; fresh?: boolean; onDelete: () => void }) {
+/**
+ * `fresh`: just created, so open straight in the editor (without changing the remembered mode).
+ * `highlights`: made on this clip's page, shown as marks in the preview. `focusHighlight`: scroll to that mark and flash it.
+ */
+export function ClipPane(p: {
+  clip: Clip; projects: Project[]; fresh?: boolean; onDelete: () => void;
+  highlights?: Highlight[]; focusHighlight?: string;
+  /** Open the note a [[wikilink]] points to. */
+  onOpenLink?: (title: string) => void;
+  folders?: string[]; onMoveToFolder?: (folder: string | null) => void;
+}) {
   const ui = useUi();
-  const [mode, setModeState] = useState<Mode>(() => (p.fresh ? 'edit' : loadMode()));
+  const [mode, setModeState] = useState<Mode>(() => (p.fresh ? 'edit' : p.focusHighlight ? 'view' : loadMode()));
   const [draft, setDraft] = useState<Draft>(() => draftOf(p.clip));
   const [status, setStatus] = useState<Status>('saved');
   const draftRef = useRef(draft);
@@ -162,7 +183,36 @@ export function ClipPane(p: { clip: Clip; projects: Project[]; fresh?: boolean; 
   };
 
   const previewSource = useDebounced(draft.markdown, mode === 'split' ? 150 : 0);
-  const html = useMemo(() => renderMarkdown(previewSource), [previewSource]);
+  const hls = p.highlights ?? [];
+  const hlKey = hls.map((h) => `${h.id}:${h.color}:${h.note ?? ''}`).join('|');
+  // renderMarkdown sanitizes; marks are added afterwards with validated colors only.
+  const html = useMemo(() => markHighlightsInHtml(renderMarkdown(previewSource), hls).html, [previewSource, hlKey]);
+
+  // Came here from a highlight: bring its mark into view once the preview is rendered.
+  const revealed = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const id = p.focusHighlight;
+    const root = previewEl.current;
+    if (!id || !root || revealed.current === id) return;
+    revealed.current = id; // once per jump, not on every re-render while editing
+    const marks = [...root.querySelectorAll<HTMLElement>('mark.tn-hl')].filter((m) => m.dataset.tnId === id);
+    if (!marks.length) { ui.toast(lt('hlNotInNote')); return; }
+    marks[0]!.scrollIntoView({ block: 'center' });
+    marks.forEach((m) => m.classList.add('flash'));
+    const t = setTimeout(() => marks.forEach((m) => m.classList.remove('flash')), 1600);
+    return () => clearTimeout(t);
+  }, [p.focusHighlight, html]);
+
+  // Tags: saved at once (not part of the debounced text draft).
+  const [tags, setTags] = useState<string[]>(p.clip.tags);
+  useEffect(() => setTags(p.clip.tags), [p.clip.tags.join('\n')]);
+  const [tagInput, setTagInput] = useState('');
+  const saveTags = (next: string[]) => { setTags(next); void persist({ tags: next }); };
+  const addTags = (raw: string) => {
+    const add = raw.split(/[,\s]+/).map(normTag).filter(Boolean).filter((t) => !tags.includes(t));
+    setTagInput('');
+    if (add.length) saveTags([...tags, ...add]);
+  };
 
   const move = async (projectId: string | null, name: string) => {
     await persist({ projectId });
@@ -205,6 +255,21 @@ export function ClipPane(p: { clip: Clip; projects: Project[]; fresh?: boolean; 
               <Icon name="chevronDown" size={12} />
             </button>
           )} />
+          {p.onMoveToFolder && (
+            <Menu placement="down" align="left"
+              items={[
+                ...(folderName(c.section) ? [{ label: lt('noFolder'), icon: 'note' as const, onSelect: () => p.onMoveToFolder!(null) }] : []),
+                ...(p.folders ?? []).filter((f) => f !== folderName(c.section)).map((f) => ({ label: f, icon: 'folder' as const, onSelect: () => p.onMoveToFolder!(f) })),
+              ]}
+              trigger={(toggle) => (
+                <button type="button" class="btn sm ghost" onClick={toggle} title={lt('moveToFolder')}
+                  disabled={!(p.folders ?? []).length}>
+                  <Icon name="folderPlus" size={13} />
+                  <span class="truncate move-name">{folderName(c.section) || lt('noFolder')}</span>
+                  <Icon name="chevronDown" size={12} />
+                </button>
+              )} />
+          )}
           <span class="grow" />
           <span class={`save-status ${status}`} role="status">
             {status === 'saved' && <><Icon name="check" size={12} />{lt('saved')}</>}
@@ -222,6 +287,26 @@ export function ClipPane(p: { clip: Clip; projects: Project[]; fresh?: boolean; 
           onInput={(e) => edit({ note: e.currentTarget.value })} />
       </div>
 
+      <div class="tags-field" aria-label={lt('tags')}>
+        <Icon name="tag" size={13} />
+        {tags.map((t) => (
+          <span key={t} class="tag-chip">#{t}
+            <button type="button" class="tag-x" title={ut('delete')} aria-label={`${ut('delete')} #${t}`}
+              onClick={() => saveTags(tags.filter((x) => x !== t))}><Icon name="x" size={10} stroke={2.4} /></button>
+          </span>
+        ))}
+        <input class="tag-input" value={tagInput} placeholder={tags.length ? '' : lt('addTags')} aria-label={lt('addTags')}
+          onInput={(e) => {
+            const v = e.currentTarget.value;
+            if (/[,\s]$/.test(v)) addTags(v); else setTagInput(v);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); addTags(tagInput); }
+            if (e.key === 'Backspace' && !tagInput && tags.length) saveTags(tags.slice(0, -1));
+          }}
+          onBlur={() => { if (tagInput.trim()) addTags(tagInput); }} />
+      </div>
+
       <div class={`pane-body mode-${mode}`}>
         {mode !== 'view' && (
           <div class="pane-editor">
@@ -231,7 +316,7 @@ export function ClipPane(p: { clip: Clip; projects: Project[]; fresh?: boolean; 
         )}
         {mode !== 'edit' && (
           <Preview html={html} empty={!draft.markdown.trim()} onEdit={() => { if (mode === 'view') setMode('edit'); }}
-            scrollRef={(el) => { previewEl.current = el; }} onScroll={onPreviewScroll} />
+            scrollRef={(el) => { previewEl.current = el; }} onScroll={onPreviewScroll} onLink={p.onOpenLink} />
         )}
       </div>
     </section>

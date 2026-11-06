@@ -42,12 +42,28 @@ const inlineMathExt: TokenizerAndRendererExtension = {
   renderer: (token) => `<span class="math">$${escapeHtml(String(token.text))}$</span>`,
 };
 
+// [[Title]] / [[Title|alias]] / [[Title#heading]] → <a class="wikilink" data-wikilink="Title"> (opened by the Library).
+const wikilinkExt: TokenizerAndRendererExtension = {
+  name: 'wikilink',
+  level: 'inline',
+  start: (src) => src.indexOf('[['),
+  tokenizer(src) {
+    const m = /^\[\[([^\]\n|#^]+)((?:[#^][^\]\n|]*)?)(?:\|([^\]\n]*))?\]\]/.exec(src);
+    if (!m) return undefined;
+    const target = m[1]!.trim();
+    return { type: 'wikilink', raw: m[0], target, text: (m[3] ?? '').trim() || `${target}${m[2] ?? ''}` };
+  },
+  renderer: (token) =>
+    `<a href="#" class="wikilink" data-wikilink="${escapeHtml(String(token.target))}">${escapeHtml(String(token.text))}</a>`,
+};
+
 const md = new Marked({ gfm: true, breaks: false });
-md.use({ extensions: [blockMathExt, inlineMathExt, markExt] });
+md.use({ extensions: [blockMathExt, inlineMathExt, wikilinkExt, markExt] });
 
 /** Render markdown to sanitized HTML. Links open in a new tab. */
 export function renderMarkdown(source: string): string {
   const raw = md.parse(source, { async: false }) as string;
   const clean = DOMPurify.sanitize(raw, { FORBID_TAGS: ['style', 'iframe', 'form', 'input', 'button'], FORBID_ATTR: ['style'] });
-  return clean.replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href=');
+  // External links open in a new tab; wikilinks (href="#") are handled by the page.
+  return clean.replace(/<a href=(?!"#")/g, '<a target="_blank" rel="noopener noreferrer" href=');
 }

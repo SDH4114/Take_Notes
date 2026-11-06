@@ -9,6 +9,9 @@ export default defineConfig({
     name: '__MSG_extName__',
     description: '__MSG_extDescription__',
     default_locale: 'ru',
+    // Firefox shows this as the add-on developer.
+    developer: { name: 'AmikoLabs', url: 'https://amikolabs.com' },
+    homepage_url: 'https://amikolabs.com',
     permissions: ['storage', 'contextMenus', 'downloads', 'tabs', 'scripting'],
     host_permissions: ['<all_urls>'],
     commands: {
@@ -17,7 +20,8 @@ export default defineConfig({
     },
     browser_specific_settings: {
       gecko: {
-        id: 'take-notes@haos',
+        // Add-on ID = owner. Changing it makes Firefox treat this as a different add-on (old local data is not carried over).
+        id: 'take-notes@amikolabs.com',
         strict_min_version: '140.0',
         // Everything stays local; nothing is collected or transmitted.
         data_collection_permissions: { required: ['none'] },

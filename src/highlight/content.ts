@@ -9,6 +9,7 @@ import {
   clearHighlights, flashHighlight, installMarkClicks, marksOf, recolorHighlight, removeHighlight, renderHighlight, wrapRange,
 } from './render';
 import { createSelectionToolbar, isEditable } from './toolbar';
+import { watchSiteActive } from '@/src/sites/content';
 
 const RETRY_DELAY_MS = 2000;
 const FOCUS_TIMEOUT_MS = 4000;
@@ -152,6 +153,7 @@ export function createHighlightController(deps: ControllerDeps = {}) {
   }
 
   function start(): void {
+    if (stopFns.length) return;
     const toolbar = createSelectionToolbar((color) => {
       highlightSelection(color).catch((e) => console.warn('[take-notes] highlight failed', e));
     }, loadPalette);
@@ -164,14 +166,29 @@ export function createHighlightController(deps: ControllerDeps = {}) {
     stopFns = [];
   }
 
-  return { highlightSelection, refresh, focusHighlight, start, stop };
+  /** Remove every rendered mark from the page (TakeNotes switched off here); data stays stored. */
+  function unrender(): void {
+    clearTimeout(retryTimer);
+    clearHighlights();
+    items.clear();
+  }
+
+  return { highlightSelection, refresh, focusHighlight, start, stop, unrender };
 }
 
 /** Called once per page from entrypoints/content.ts. */
 export function setupHighlightContent(): Handlers<ContentMessages> {
   const controller = createHighlightController();
-  controller.start();
-  controller.refresh().catch((e) => console.warn('[take-notes] loading highlights failed', e));
+  // Site access decides whether the bubble and stored highlights appear; it can flip live from the popup/settings.
+  watchSiteActive((active) => {
+    if (active) {
+      controller.start();
+      controller.refresh().catch((e) => console.warn('[take-notes] loading highlights failed', e));
+    } else {
+      controller.stop();
+      controller.unrender();
+    }
+  });
   return {
     'content/highlightSelection': ({ color } = {}) => controller.highlightSelection(color),
     'content/refreshHighlights': () => controller.refresh(),

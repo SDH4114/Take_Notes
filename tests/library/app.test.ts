@@ -31,6 +31,9 @@ vi.mock('@/src/core/messages', () => ({
 vi.mock('@/src/core/storage', () => ({
   books: { list: async () => [], get: async () => undefined },
   clips: { get: async () => undefined },
+  folders: { get: async () => [], set: async () => {} },
+  highlights: { get: async () => undefined },
+  boards: { get: async () => null, set: async () => {} },
 }));
 
 import { UiProvider } from '@/src/ui/components';

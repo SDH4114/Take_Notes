@@ -131,9 +131,105 @@ button { font-family: inherit; }
 .chapter:hover { background: var(--bg-hover); color: var(--fg); }
 .chapter.selected { background: var(--accent-soft); color: var(--fg); font-weight: 550; }
 
+/* ---------- wide views (graph, board): list column takes the whole width */
+.lib.wide { grid-template-columns: 240px minmax(0, 1fr); }
+.lib.wide .list-col { border-right: 0; }
+.lib.wide .list-head { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px 16px; border-bottom: 1px solid var(--border); }
+.lib.wide .list-head .tabs { width: 420px; max-width: 100%; }
+.lib.wide .list-toolbar { flex: 1; }
+.tabs button { padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1100px) { .lib.wide { grid-template-columns: 210px minmax(0, 1fr); } }
+
+/* ---------- tags + wikilinks + highlight marks in notes */
+.tags-field { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; width: 100%; max-width: 816px; margin: 0 auto; padding: 0 28px 10px; color: var(--muted); }
+.tag-chip { display: inline-flex; align-items: center; gap: 2px; height: 22px; padding: 0 4px 0 8px; border-radius: 11px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 500; }
+.tag-chip.sm { height: 18px; padding: 0 6px; font-size: 11px; }
+.tag-x { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; opacity: .6; }
+.tag-x:hover { opacity: 1; background: var(--bg-hover); }
+.tag-input { flex: 1; min-width: 120px; height: 22px; border: 0; outline: 0; background: transparent; color: var(--fg); font: 12.5px var(--font); }
+.md a.wikilink { color: var(--accent); text-decoration: none; border-bottom: 1px dashed currentColor; }
+.md a.wikilink::before { content: '[['; opacity: .35; }
+.md a.wikilink::after { content: ']]'; opacity: .35; }
+.md mark.tn-hl { padding: 0 1px; border-radius: 2px; color: inherit; transition: box-shadow .2s; }
+.md mark.tn-hl.flash { box-shadow: 0 0 0 3px var(--accent); }
+.hl-links { gap: 2px; flex-wrap: wrap; }
+.pane-head .hl-quote { margin: 8px 0 10px; font-size: 16px; max-height: 30vh; overflow: auto; }
+.hl-actions { gap: 8px; flex-wrap: wrap; padding-bottom: 6px; }
+.hl-long-head { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 816px; margin: 0 auto; padding: 4px 28px 8px; }
+.hl-long-head .label { margin: 0; }
+
+/* ---------- folders in the notes list */
+.folder-root { min-height: 6px; border-radius: var(--radius); }
+.folder { margin-top: 4px; }
+.folder-head { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px 0 8px; border-radius: var(--radius-sm); color: var(--fg-sub); font-weight: 600; font-size: 13px; cursor: pointer; user-select: none; }
+.folder-head:hover { background: var(--bg-hover); color: var(--fg); }
+.folder-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.folder-name { flex: 1; min-width: 0; }
+.folder-actions { display: none; }
+.folder-head:hover .folder-actions, .folder-head:focus-within .folder-actions { display: inline-flex; }
+.folder-head:hover .nav-count { display: none; }
+.folder-body { margin-left: 12px; padding-left: 6px; border-left: 1px solid var(--border); min-height: 8px; }
+.folder-empty { padding: 8px 10px; }
+.drop-into { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* ---------- graph */
+.graph { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.graph-bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
+.graph-bar .segmented { width: 240px; }
+.graph > .empty { flex: 1; }
+.graph-canvas { flex: 1; min-height: 0; width: 100%; background: var(--bg-sub); cursor: grab; touch-action: none; user-select: none; }
+.graph-canvas:active { cursor: grabbing; }
+.g-edge { stroke: var(--border-strong); stroke-width: 1; transition: opacity .15s; }
+.g-edge.tag { stroke-dasharray: 3 3; }
+.g-edge.hot { stroke: var(--accent); stroke-width: 1.6; }
+.g-node { cursor: pointer; transition: opacity .15s; }
+.g-node circle { fill: var(--accent); stroke: var(--bg-sub); stroke-width: 1.5; }
+.g-node.tag circle { fill: var(--success); }
+.g-node.folder rect { fill: #f76b15; stroke: var(--bg-sub); stroke-width: 1.5; }
+.g-edge.folder { stroke-dasharray: 1 3; }
+.g-node:hover circle { stroke: var(--fg); }
+.g-node text { fill: var(--fg-sub); pointer-events: none; paint-order: stroke; stroke: var(--bg-sub); stroke-width: 3px; }
+.dim { opacity: .15; }
+
+/* ---------- kanban board */
+.board { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-height: 0; padding: 14px; overflow: auto; background: var(--bg-sub); }
+.board-col { display: flex; flex-direction: column; flex: none; width: 280px; max-height: 100%; border-radius: var(--radius); background: var(--bg-hover); }
+.board-col.drop-end .board-cards { box-shadow: inset 0 -3px 0 var(--accent); }
+.board-col-head { display: flex; align-items: center; gap: 6px; padding: 8px 8px 6px 12px; }
+.board-col-head h3 { margin: 0; font-size: 13px; font-weight: 650; cursor: text; }
+.board-col-head .input { height: 26px; }
+.board-cards { display: flex; flex-direction: column; gap: 6px; min-height: 48px; padding: 2px 8px 10px; overflow-y: auto; border-radius: 0 0 var(--radius) var(--radius); }
+.board-card { display: flex; flex-direction: column; gap: 6px; padding: 9px 10px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.board-card:hover { border-color: var(--border-strong); }
+.board-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.board-card.dragging { opacity: .4; }
+.board-card.drop-before { box-shadow: 0 -3px 0 var(--accent); }
+.board-card-title { display: flex; align-items: flex-start; gap: 6px; font-weight: 550; line-height: 1.35; overflow-wrap: anywhere; }
+.board-card-title svg { flex: none; margin-top: 2px; color: var(--muted); }
+.board-card-meta { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.board-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.board-empty { padding: 14px 6px; text-align: center; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); }
+.board-card-title .grow { min-width: 0; }
+.board-card-actions { display: none; margin: -4px -6px -4px 0; }
+.board-card:hover .board-card-actions, .board-card:focus-within .board-card-actions { display: inline-flex; }
+.board-new-card { display: flex; align-items: center; gap: 6px; margin: 0 8px 8px; height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--fg-sub); font: 13px var(--font); cursor: pointer; }
+.board-new-card:hover { background: var(--bg-active); color: var(--fg); }
+.board-compose { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+.board-compose-title, .board-compose-text { width: 100%; border: 0; outline: 0; background: transparent; color: var(--fg); font: 13px/1.4 var(--font); resize: vertical; }
+.board-compose-title { font-weight: 550; }
+.todo-check { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; margin-top: 1px; padding: 0; border: 1.5px solid var(--border-strong); border-radius: 50%; background: var(--bg); color: var(--accent-fg); cursor: pointer; transition: background .12s, border-color .12s; }
+.todo-check:hover { border-color: var(--success); }
+.todo-check.on { background: var(--success); border-color: var(--success); }
+.board-card.done .card-title-text { text-decoration: line-through; color: var(--muted); }
+.board-new-col { gap: 8px; padding: 10px; }
+.board-add { display: flex; align-items: center; gap: 6px; flex: none; height: 38px; padding: 0 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius); background: transparent; color: var(--fg-sub); font: 13px var(--font); cursor: pointer; }
+.board-add:hover { background: var(--bg-hover); color: var(--fg); }
+
 /* ---------- narrow windows: nav collapses to an icon rail */
 @media (max-width: 900px) {
   .lib { grid-template-columns: 52px 270px minmax(0, 1fr); }
+  .lib.wide { grid-template-columns: 52px minmax(0, 1fr); }
+  .tags-field { padding-left: 18px; padding-right: 18px; }
   .brand-name, .search, .nav-label, .nav-count, .nav-actions, .nav-section, .nav-add { display: none; }
   .nav { padding: 12px 6px; align-items: center; }
   .nav-row { justify-content: center; padding: 0; }

@@ -13,22 +13,25 @@ Firefox extension for school and university students: turn web pages into study 
 AI features are deferred.
 
 ## Status
-Prototype v0.3.0 (custom highlight palette + bubble toolbar); UI/UX redesign done — Library tab with Markdown editor, new popup/sidebar/options/crawler, jump-to-highlight.
-365 unit tests, build + web-ext lint (0 errors) clean. Tested by Haos in Zen (Firefox-based) at v0.1; v0.2 not yet run in a browser.
+Prototype v0.7.0 (kanban cards as to-dos + done column, whole-project PDF zip via pdfmake; v0.6: folders in projects, highlight long notes, board export, whole-project exports only; v0.5: kanban: own cards create/delete; Library graph + kanban board, tags/[[wikilinks]], highlights inside notes and exports, whole-project folder export, highlight move/open-note, themes, add-on ID take-notes@amikolabs.com; v0.4: on/off + site blocklist); UI/UX redesign done — Library tab with Markdown editor, new popup/sidebar/options/crawler, jump-to-highlight.
+420 unit tests, build + web-ext lint (0 errors) clean. Tested by Haos in Zen (Firefox-based) at v0.1; v0.2 not yet run in a browser.
 Known gaps: book chapters keep remote images in PDF; math in PDF is TeX text; `src/crawl/book.ts bookToMarkdown`
 duplicates `src/export/document.ts bookToMarkdownExport` (only tests use it); Library loads full books to count chapters.
 
 ## Stack
-TypeScript, WXT 0.21 (Vite), Manifest V3 for Firefox (background = event page with DOM), Preact, IndexedDB via `idb`, `@mozilla/readability`, `turndown` + `turndown-plugin-gfm`, `dompurify`, `fflate`. CodeMirror 6 (editor), `marked` (preview). Tests: Vitest + jsdom (+ `fake-indexeddb`). npm.
+TypeScript, WXT 0.21 (Vite), Manifest V3 for Firefox (background = event page with DOM), Preact, IndexedDB via `idb`, `@mozilla/readability`, `turndown` + `turndown-plugin-gfm`, `dompurify`, `fflate`. CodeMirror 6 (editor), `marked` (preview). `pdfmake` 0.3 + `html-to-pdfmake` 2.5 (whole-project PDF zip; browser builds, Roboto vfs). Tests: Vitest + jsdom (+ `fake-indexeddb`). npm.
 
 ## Structure
 - `entrypoints/background.ts` — merges handler maps from every module's `setup*Background()`.
 - `entrypoints/content.ts` — merges `setup*Content()` handlers; runs on `<all_urls>`.
 - `entrypoints/{popup,sidepanel,options,crawler,print,library}/` — Preact pages (`sidepanel` → Firefox `sidebar_action`; `library` = full-tab workspace, opened via `openLibrary({project, clip, view})`).
-- `src/library/` — Library app (App, Nav, Lists, ClipPane, Panes), `format.ts` (pure Markdown formatting commands), `logic.ts`.
+- `src/library/` — Library app (App, Nav, Lists, ClipPane, Panes, GraphView, BoardView), `format.ts` (pure Markdown formatting commands), `logic.ts`, `graph.ts` (pure: wikilinks/tags parsing, graph build, force layout), `board.ts` (pure kanban moves).
+- `src/highlight/apply.ts` — joins a page's highlights to its clip (by normalized URL): `<mark>` in HTML (Library preview, PDF), `==text==` in Markdown exports.
+- `src/ui/theme.ts` — `initTheme()` in every extension page; `data-theme` on `<html>` overrides `prefers-color-scheme` (base.css).
 - `src/ui/` — shared kit: `base.css` (tokens + classes), `icons.tsx`, `components.tsx` (UiProvider toast/prompt/confirm, Menu, ProjectPicker, ExportMenu, openLibrary), `markdown.ts` (renderMarkdown: GFM + ==mark== + $math$, sanitized), `editor.tsx` (CodeMirror MarkdownEditor).
 - `src/core/` — `types.ts` (data model), `messages.ts` (typed message contract + sender allowlist), `storage.ts` (IndexedDB), `i18n.ts`, `util.ts`, `dom-guard.ts` (isTrusted / closed shadow for page UI).
 - `src/cite/` — source metadata + GOST/APA/MLA formatting. `src/markdown/` — HTML→MD (Turndown).
+- `src/sites/` — global on/off + blocked sites: `rules.ts` (pure matching), `store.ts` (storage.local), `content.ts` (`gateHandlers`, `watchSiteActive`), `background.ts` (hides menu items via `menus.onShown`).
 - `src/<module>/` — `extract`, `projects`, `highlight`, `crawl`, `export`, `youtube`; each has `background.ts` / `content.ts` setup functions and its own `strings.ts`.
 - `tests/` — unit tests + `tests/fixtures/` HTML.
 
@@ -64,6 +67,19 @@ Content script extracts/anchors on the page and answers `ContentMessages`. Backg
 - Crawler limited to same origin + path prefix, 1 request at a time, delay ≥1 s, max pages setting.
 
 ## Gotchas
+- Clips and highlights are separate records joined only by `normalizeUrl(clip.source.url) === highlight.url`; edited note text may no longer contain a highlight → it is still listed in the "Highlights" section of exports.
+- Folders = `clip.section` (one level). Stored list (order + empty folders) in kv `folders:<projectId|__inbox__>`; `folderList()` merges it with sections found on clips. Graph adds a folder node per (project, folder).
+- Highlight has two notes: `note` (short, page popover, shown on sites) and `body` (long Markdown, Library only). `highlight/save` from a web page never changes `body`.
+- Project export menu = whole project only: Markdown zip (`projectToFolderFiles`) and PDF zip (`src/export/pdfzip.ts`), same layout from `projectLayout()`: notes in folders, `highlights/NNN - snippet.*` (one per highlight), `board.*`, index. Single notes / the board alone still use Firefox `tabs.saveAsPDF` (one save dialog each; it can't write into zips or subfolders).
+- PDF zip runs in the extension page, never in the background: the background is a single bundle (dynamic `import()` gets inlined) and pdfmake + fonts are ~1.7 MB. `runExport` lazy-imports `src/export/pdfzip.ts`. pdfmake may not fetch URLs (`setUrlAccessPolicy(() => false)`); `prepareForPdf` inlines PNG/JPEG as data URLs, other images become alt text. No monospace font is embedded (code is Roboto).
+- web-ext lint: 3 DANGEROUS_EVAL in the pdfmake chunk are webpack/core-js `Function('return this')` fallbacks, only reached when `globalThis` is missing (never in Firefox 140+).
+- Kanban to-dos: card checkbox moves it to `doneColumnId()` (column with `done: true`, else id `done`, else last) and back to the first other column.
+- `UiProvider` api is memoized: pages put `ui` in deps; an unstable object made a failing load loop forever.
+- Kanban: column per clip = `clip.status` (unknown/missing → first column); columns per project in IndexedDB `kv` key `board:<projectId|__inbox__>`; card order = project `clip.order`.
+- Theme lives in `localStorage` `tn.theme` (extension pages only, synchronous → no flash). In-page bubble/popover still follow the browser theme.
+- Graph/[[link]] resolution is by note title (case-insensitive), current project first. Project folder export names files by title so links resolve in Obsidian.
+- Add-on ID changed from `take-notes@haos` to `take-notes@amikolabs.com` (v0.5): Firefox sees a new add-on, data stored under the old ID is not visible.
+- Site access (`enabled`, `blockedSites`) lives in `browser.storage.local` key `tn-site-access`, NOT in IndexedDB `Settings`: content scripts can't reach the extension IndexedDB but can read storage.local and get `storage.onChanged`. Gating happens in the content script (every `ContentMessages` handler is wrapped by `gateHandlers`), so menus, hotkeys, popup and sidebar jumps are all refused on blocked pages. A blocklist entry covers subdomains; `www.` is stripped.
 - Highlight colors: stored as `#rrggbb`, old data may hold names (`yellow`…). Always go through `colorHex()` (`src/core/colors.ts`) — it is also the CSS-injection guard for marks (`--tn-hl-rgb` on each `<mark>`). Palette = `settings.highlightPalette`, main color = `settings.highlightColor`; content scripts get it via `highlight/palette`.
 - Library editor keeps its own draft; `data/changed` refreshes must not reset the clip being edited. Autosave merges onto the stored clip.
 - Firefox may intercept some editor shortcuts (Ctrl/Cmd+N, K, E); toolbar buttons always work.
