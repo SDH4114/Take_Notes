@@ -36,10 +36,10 @@ describe('runPdfExport', () => {
     await expect(runPdfExport(deps, opts)).rejects.toThrow('PDF was not saved');
     expect(log).toContain('close 7');
   });
-  it('falls back to window.print() and keeps the tab open when saveAsPDF is missing', async () => {
+  it('without saveAsPDF (Chrome) the print page prints itself and the tab stays open', async () => {
     const { deps, log } = fakeDeps({ saveAsPDF: undefined });
     await runPdfExport(deps, opts);
-    expect(log).toEqual([`open ${opts.url}`, 'print 7']);
+    expect(log).toEqual([`open ${opts.url}&autoprint=1`, 'print 7']);
   });
   it('reports a failing print page and closes the tab', async () => {
     const { deps, log } = fakeDeps({ waitReady: async () => ({ ok: false, error: 'Clip not found' }) });

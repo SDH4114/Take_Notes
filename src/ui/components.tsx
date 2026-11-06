@@ -95,12 +95,13 @@ export function UiProvider({ children }: { children: ComponentChildren }) {
   // re-run forever (error → toast → re-render → new ui → load again).
   const api = useMemo<UiApi>(() => ({
     toast,
-    prompt: (title, o = {}) => new Promise((resolve) => setDialog({
+    prompt: (title, o = {}) => new Promise((resolve) => setDialog((prev) => { prev?.resolve(null); return {
       title, input: { value: o.value ?? '', placeholder: o.placeholder }, okLabel: o.okLabel ?? ut('save'),
       resolve: (v) => resolve(typeof v === 'string' ? v : null),
-    })),
-    confirm: (title, o = {}) => new Promise((resolve) => setDialog({
-      title, message: o.message, okLabel: o.okLabel ?? ut('confirm'), danger: o.danger, resolve: (v) => resolve(v === true),
+    }; })),
+    confirm: (title, o = {}) => new Promise((resolve) => setDialog((prev) => {
+      prev?.resolve(null); // an open dialog is cancelled, its caller must not hang
+      return { title, message: o.message, okLabel: o.okLabel ?? ut('confirm'), danger: o.danger, resolve: (v) => resolve(v === true) };
     })),
   }), [toast]);
   return (
@@ -134,7 +135,7 @@ function Dialog({ state, close }: { state: DialogState; close: (v: string | bool
   return (
     <div class="dialog-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) close(state.input ? null : false); }}>
       <div class="dialog" role="dialog" aria-modal="true"
-        onKeyDown={(e) => { if (e.key === 'Escape') close(state.input ? null : false); if (e.key === 'Enter') ok(); }}>
+        onKeyDown={(e) => { if (e.key === 'Escape') close(state.input ? null : false); if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) ok(); }}>
         <h3>{state.title}</h3>
         {state.message && <p class="muted" style={{ margin: 0 }}>{state.message}</p>}
         {state.input && (

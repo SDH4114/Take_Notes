@@ -44,7 +44,7 @@ export function HighlightPane(p: {
         const latest = await hlStore.get(h.id);
         if (!latest) return; // deleted elsewhere
         const d = draftRef.current;
-        await send('highlight/save', { ...latest, note: d.note.trim() || undefined, body: d.body.trim() ? d.body : undefined });
+        await send('highlight/save', { ...latest, note: d.note.trim() ? d.note : undefined, body: d.body.trim() ? d.body : undefined });
         if (!pending.current) setStatus('saved');
       } catch (e) {
         setStatus('error');

@@ -24,7 +24,7 @@ interface Status { kind: 'ok' | 'error' | 'info'; text: string; clipId?: string 
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [tab, setTab] = useState<{ id?: number; url?: string }>({});
+  const [tab, setTab] = useState<{ id?: number; url?: string; windowId?: number }>({});
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status | null>(null);
   const [access, setAccess] = useState<SiteAccess>(DEFAULT_SITE_ACCESS);
@@ -50,7 +50,7 @@ function App() {
           loadProjects(),
           settings.get(),
         ]);
-        setTab({ id: active?.id, url: active?.url });
+        setTab({ id: active?.id, url: active?.url, windowId: active?.windowId });
         // A deleted project must not stay selected: fall back to Inbox.
         setProjectId(list.some((p) => p.id === s.defaultProjectId) ? s.defaultProjectId : null);
       } catch (e) {
@@ -126,9 +126,13 @@ function App() {
   };
 
   const openSidebar = () => {
-    // sidebarAction.open() must run synchronously inside the click handler (user gesture).
-    const sidebar = (browser as unknown as { sidebarAction?: { open(): Promise<void> } }).sidebarAction;
-    sidebar?.open().then(() => window.close(), fail);
+    // Both must be called synchronously inside the click handler (user gesture).
+    const api = browser as unknown as {
+      sidebarAction?: { open(): Promise<void> }; // Firefox
+      sidePanel?: { open(o: { windowId: number }): Promise<void> }; // Chrome 116+
+    };
+    if (api.sidebarAction) api.sidebarAction.open().then(() => window.close(), fail);
+    else if (api.sidePanel && tab.windowId != null) api.sidePanel.open({ windowId: tab.windowId }).then(() => window.close(), fail);
   };
 
   const openLib = (clip?: string) => {

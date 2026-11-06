@@ -7,6 +7,7 @@ import * as storage from '@/src/core/storage';
 import type { Book, CrawlProgress, ExtractResult, SourceMeta, TocEntry } from '@/src/core/types';
 import { isHttpUrl, newId, normalizeUrl, nowIso, sameOrigin } from '@/src/core/util';
 import { extractArticle } from '@/src/extract/article';
+import { dom, hasDom } from '@/src/core/dom';
 import { Crawler, toChapter, type CrawledPage } from './queue';
 
 export interface CrawlBackgroundDeps {
@@ -120,6 +121,8 @@ export function setupCrawlBackground(): Handlers<BackgroundMessages> {
     fetchFn: (url) => fetch(url, { credentials: 'omit' }),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     extract: extractArticle,
+    // Chrome service worker: parse + extract in the offscreen document.
+    ...(hasDom() ? {} : { extractHtml: (html: string, url: string) => dom('extractHtml', { html, url }) }),
     sendToTab,
     resolveTabId,
     broadcast,

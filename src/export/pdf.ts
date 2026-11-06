@@ -25,7 +25,8 @@ export interface PdfOptions { url: string; filename: string; lang?: Lang; landsc
 /** Orchestration, independent of the browser APIs (see browserPdfDeps for the real ones). */
 export async function runPdfExport(deps: PdfDeps, { url, filename, lang = uiLang(), landscape = false }: PdfOptions): Promise<void> {
   const t = exportT(lang);
-  const tabId = await deps.openTab(url);
+  // Without saveAsPDF (Chrome) the print page opens the browser's print dialog itself ("Save as PDF").
+  const tabId = await deps.openTab(deps.saveAsPDF ? url : `${url}&autoprint=1`);
   let keepOpen = false;
   try {
     let ready: ReadyMessage;
@@ -91,9 +92,9 @@ export function browserPdfDeps(timeoutMs = 90_000): PdfDeps {
       });
     },
     saveAsPDF: tabsApi.saveAsPDF ? (s) => tabsApi.saveAsPDF!(s) : undefined,
-    async print(tabId) {
+    async print() {
+      // The page prints itself (autoprint=1): Chrome can't inject scripts into extension pages.
       dispose();
-      await browser.scripting.executeScript({ target: { tabId }, func: () => window.print() });
     },
     async closeTab(tabId) {
       dispose();

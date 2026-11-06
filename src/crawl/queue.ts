@@ -6,6 +6,8 @@ export interface CrawlerDeps {
   fetchFn: (url: string) => Promise<Response>;
   sleep: (ms: number) => Promise<void>;
   extract: (doc: Document, url: string) => ExtractResult;
+  /** Parse + extract from raw HTML elsewhere (Chrome: the service worker has no DOM → offscreen document). */
+  extractHtml?: (html: string, url: string) => Promise<ExtractResult>;
 }
 
 export interface CrawlerOptions {
@@ -92,8 +94,9 @@ export class Crawler {
       if (this.stopped) break;
       this.emit('running', i, list.length, entry.url);
       try {
-        const { doc, url } = await this.fetchPage(entry.url);
-        pages.push({ entry, result: this.deps.extract(doc, url) });
+        const { text, url } = await this.fetchPage(entry.url);
+        const result = this.deps.extractHtml ? await this.deps.extractHtml(text, url) : this.deps.extract(parseHtml(text, url), url);
+        pages.push({ entry, result });
       } catch (e) {
         this.errors.push({ url: entry.url, message: e instanceof Error ? e.message : String(e) });
       }
@@ -107,7 +110,7 @@ export class Crawler {
   }
 
   /** One request with a single retry on network error, 5xx or 429. */
-  private async fetchPage(url: string): Promise<{ doc: Document; url: string }> {
+  private async fetchPage(url: string): Promise<{ text: string; url: string }> {
     for (let attempt = 0; ; attempt++) {
       let res: Response;
       try {
@@ -128,15 +131,19 @@ export class Crawler {
       if (!isHtmlType(ct)) throw new Error(`skipped: not HTML (${ct})`);
       const finalUrl = res.url || url;
       if (this.opts.rootUrl && !sameOrigin(finalUrl, this.opts.rootUrl)) throw new Error(`redirected off-site: ${finalUrl}`);
-      const text = decodeHtml(await readBodyCapped(res, MAX_PAGE_BYTES), ct);
-      const doc = new DOMParser().parseFromString(text, 'text/html');
-      doc.querySelectorAll('base').forEach((b) => b.remove());
-      const base = doc.createElement('base');
-      base.href = finalUrl;
-      doc.head.prepend(base);
-      return { doc, url: finalUrl };
+      return { text: decodeHtml(await readBodyCapped(res, MAX_PAGE_BYTES), ct), url: finalUrl };
     }
   }
+}
+
+/** Parse fetched HTML with a <base> of the final URL, so relative links/images resolve against the page. */
+export function parseHtml(text: string, url: string): Document {
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  doc.querySelectorAll('base').forEach((b) => b.remove());
+  const base = doc.createElement('base');
+  base.href = url;
+  doc.head.prepend(base);
+  return doc;
 }
 
 export function toChapter(page: CrawledPage): BookChapter {

@@ -64,12 +64,24 @@ export function markHighlightsInHtml(html: string, list: readonly Highlight[]): 
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** Ranges of fenced code blocks and inline code, which must not get ==marks==. */
-function codeSpans(md: string): Array<[number, number]> {
+/** Ranges of fenced code blocks (whole block, up to the matching fence or the end) and inline code. */
+export function codeSpans(md: string): Array<[number, number]> {
   const out: Array<[number, number]> = [];
-  for (const re of [/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:\n {0,3}\1[^\n]*|$)/gm, /`[^`\n]+`/g]) {
-    for (const m of md.matchAll(re)) out.push([m.index!, m.index! + m[0].length]);
+  let fence: string | null = null;
+  let start = 0;
+  let pos = 0;
+  for (const line of md.split('\n')) {
+    const m = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (m) {
+      const f = m[1]!;
+      if (!fence) { fence = f; start = pos; }
+      else if (f[0] === fence[0] && f.length >= fence.length) { out.push([start, pos + line.length]); fence = null; }
+    }
+    pos += line.length + 1;
   }
+  if (fence) out.push([start, md.length]);
+  const inBlock = (i: number) => out.some(([a, b]) => i >= a && i < b);
+  for (const m of md.matchAll(/`[^`\n]+`/g)) if (!inBlock(m.index!)) out.push([m.index!, m.index! + m[0].length]);
   return out;
 }
 
@@ -90,7 +102,10 @@ export function markHighlightsInMarkdown(md: string, list: readonly Highlight[])
     for (let m = re.exec(out); m; m = re.exec(out)) {
       const s = m.index, e = s + m[0].length;
       const inCode = code.some(([a, b]) => s < b && e > a);
-      const inMark = (out.slice(0, s).match(/==/g)?.length ?? 0) % 2 === 1;
+      // Count == marks outside code only ("a == b" in a code block is not a mark).
+      let marks = 0;
+      for (const mm of out.slice(0, s).matchAll(/==/g)) if (!code.some(([a, b]) => mm.index! >= a && mm.index! < b)) marks++;
+      const inMark = marks % 2 === 1;
       if (!inCode && !inMark && !m[0].includes('==')) { hit = m; break; }
     }
     if (!hit) { missing.push(h.id); continue; }

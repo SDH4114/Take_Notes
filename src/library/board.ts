@@ -46,24 +46,26 @@ export function groupByColumn(clips: readonly Clip[], columns: readonly BoardCol
 }
 
 /**
- * Drop card `id` into `column` before card `before` (or at the end). Returns the new project order of all ids
- * (columns concatenated left→right) and the card's new status.
+ * Drop card `id` into `column` before card `before` (or at the end of that column). Only the moved card changes its
+ * place in the project order (the Notes list keeps its manual order); returns that order and the card's new status.
  */
 export function moveCard(
   clips: readonly Clip[], columns: readonly BoardColumn[], id: string, column: string, before?: string,
 ): { ids: string[]; status: string } {
-  const groups = groupByColumn(clips, columns);
-  for (const list of groups.values()) {
-    const i = list.findIndex((c) => c.id === id);
-    if (i >= 0) list.splice(i, 1);
+  const order = [...clips].sort((a, b) => a.order - b.order).map((c) => c.id);
+  const from = order.indexOf(id);
+  const rest = order.filter((x) => x !== id);
+  if (from < 0) return { ids: order, status: column };
+  let at: number;
+  if (before && before !== id && rest.includes(before)) {
+    at = rest.indexOf(before);
+  } else {
+    // After the last card of the target column; an empty column keeps the card where it was.
+    const inCol = (groupByColumn(clips, columns).get(column) ?? []).filter((c) => c.id !== id);
+    const last = inCol.at(-1);
+    at = last ? rest.indexOf(last.id) + 1 : Math.min(from, rest.length);
   }
-  const card = clips.find((c) => c.id === id);
-  const target = groups.get(column);
-  if (card && target) {
-    const at = before ? target.findIndex((c) => c.id === before) : -1;
-    target.splice(at >= 0 ? at : target.length, 0, card);
-  }
-  return { ids: [...groups.values()].flat().map((c) => c.id), status: column };
+  return { ids: [...rest.slice(0, at), id, ...rest.slice(at)], status: column };
 }
 
 /** Remove a column: its cards move to the neighbouring column (left, else right). At least one column stays. */

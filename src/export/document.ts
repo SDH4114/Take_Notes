@@ -255,13 +255,17 @@ export function highlightFileNames(hls: readonly Highlight[]): string[] {
 /** Kanban board as Markdown in the Obsidian Kanban plugin format (also readable as plain lists). */
 export function boardToMarkdown(
   title: string, columns: readonly BoardColumn[], cardsByColumn: ReadonlyMap<string, readonly Clip[]>, settings: Settings,
+  /** File path (no extension) of a note in the same export, so [[links]] match file names. */
+  pathOf?: (c: Clip) => string | undefined,
 ): string {
   let out = `---\nkanban-plugin: basic\n---\n\n# ${title}\n\n`;
   for (const col of columns) {
     out += `## ${col.name}\n\n`;
     for (const c of cardsByColumn.get(col.id) ?? []) {
       const name = c.title.trim() || '…';
-      out += `- [ ] ${settings.obsidian.wikilinks ? `[[${wikiSafe(name)}]]` : name}\n`;
+      const path = pathOf?.(c);
+      const link = path ? `[[${path}|${wikiSafe(name)}]]` : `[[${wikiSafe(name)}]]`;
+      out += `- [ ] ${settings.obsidian.wikilinks ? link : name}\n`;
     }
     out += '\n';
   }
@@ -339,7 +343,7 @@ export function projectToFolderFiles(
 
   if (hls.length) {
     const hlNames = highlightFileNames(hls);
-    const noteByUrl = new Map(sorted.filter((c) => c.source.url).map((c) => [normalizeUrl(c.source.url), c.title] as const));
+    const noteByUrl = new Map(sorted.filter((c) => c.source.url).map((c) => [normalizeUrl(c.source.url), layout.path.get(c.id)!] as const));
     index += `${heading(2, t('highlights'))}\n\n`;
     hls.forEach((h, i) => {
       const path = `highlights/${hlNames[i]}`;
@@ -349,7 +353,7 @@ export function projectToFolderFiles(
     index += '\n';
   }
   if (board && sorted.length) {
-    files['board.md'] = boardToMarkdown(`${t('board')}: ${project.name}`, board.columns, board.cards, settings);
+    files['board.md'] = boardToMarkdown(`${t('board')}: ${project.name}`, board.columns, board.cards, settings, (c) => layout.path.get(c.id));
     index += `${heading(2, t('board'))}\n\n- ${link('board.md', t('board'))}\n\n`;
   }
   index += bibliography(sorted.map((c) => c.source), project.citationStyle, lang);

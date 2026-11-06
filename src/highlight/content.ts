@@ -37,9 +37,11 @@ export function createHighlightController(deps: ControllerDeps = {}) {
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let stopFns: Array<() => void> = [];
 
-  async function save(h: Highlight): Promise<void> {
+  /** Adopt the stored result of a field update (brings in notes edited in the Library meanwhile). */
+  async function patch(req: Promise<Highlight>): Promise<void> {
     try {
-      items.set(h.id, await send('highlight/save', h));
+      const saved = await req;
+      items.set(saved.id, saved);
     } catch (e) {
       console.warn('[take-notes] saving highlight failed', e);
     }
@@ -82,9 +84,12 @@ export function createHighlightController(deps: ControllerDeps = {}) {
     return list.filter((h) => !renderHighlight(h));
   }
 
+  let generation = 0;
   async function refresh(): Promise<void> {
     clearTimeout(retryTimer);
+    const gen = ++generation;
     const list = await send('highlight/listForUrl', { url: pageUrl() });
+    if (gen !== generation) return; // switched off (or refreshed again) while loading
     clearHighlights();
     items.clear();
     for (const h of list) items.set(h.id, h);
@@ -135,14 +140,13 @@ export function createHighlightController(deps: ControllerDeps = {}) {
       onColor: (color) => {
         recolorHighlight(id, color);
         const cur = items.get(id) ?? h;
-        void save({ ...cur, color });
         items.set(id, { ...cur, color });
+        void patch(send('highlight/recolor', { id, color }));
       },
       onNote: (note) => {
         const cur = items.get(id) ?? h;
-        const next = { ...cur, note: note.trim() || undefined };
-        items.set(id, next);
-        void save(next);
+        items.set(id, { ...cur, note: note.trim() || undefined });
+        void patch(send('highlight/setNote', { id, note: note.trim() || undefined }));
       },
       onDelete: () => {
         removeHighlight(id);
@@ -168,6 +172,7 @@ export function createHighlightController(deps: ControllerDeps = {}) {
 
   /** Remove every rendered mark from the page (TakeNotes switched off here); data stays stored. */
   function unrender(): void {
+    generation++;
     clearTimeout(retryTimer);
     clearHighlights();
     items.clear();

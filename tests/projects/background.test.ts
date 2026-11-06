@@ -171,6 +171,16 @@ describe('clip editing', () => {
     expect(same.html).toBe(u.html);
   });
 
+  it('clip/patch changes only the given fields, never the text', async () => {
+    const c = (await call('clip/create', { projectId: null, title: 'N', markdown: 'v1' })) as Clip;
+    await call('clip/update', { ...c, markdown: 'v2' }); // newer text saved meanwhile
+    const p = (await call('clip/patch', { id: c.id, patch: { section: 'F', status: 'done' } })) as Clip;
+    expect(p).toMatchObject({ markdown: 'v2', section: 'F', status: 'done' });
+    const cleared = (await call('clip/patch', { id: c.id, patch: { section: null } })) as Clip;
+    expect('section' in cleared).toBe(false);
+    expect(cleared.status).toBe('done');
+  });
+
   it('clip/create puts a board card into the requested column (no status = first column)', async () => {
     const card = (await call('clip/create', { projectId: null, title: 'Card', markdown: 'text', status: 'doing' })) as Clip;
     expect((await clips.get(card.id))?.status).toBe('doing');

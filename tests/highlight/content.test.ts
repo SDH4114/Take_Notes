@@ -124,7 +124,8 @@ describe('marks interaction', () => {
     const root = document.querySelector('#tn-popover-host')!.shadowRoot!;
     (root.querySelector('button.sw[data-color="#a78bfa"]') as HTMLElement).click();
     expect((document.querySelector('mark.tn-hl') as HTMLElement).style.getPropertyValue('--tn-hl-rgb')).toBe('167,139,250');
-    expect(send).toHaveBeenCalledWith('highlight/save', expect.objectContaining({ id: 'old', color: '#a78bfa' }));
+    // only the color is sent: the page's copy of the notes may be stale
+    expect(send).toHaveBeenCalledWith('highlight/recolor', { id: 'old', color: '#a78bfa' });
     c.stop();
   });
 
@@ -138,7 +139,7 @@ describe('marks interaction', () => {
     ta.value = 'remember';
     ta.dispatchEvent(new Event('input'));
     vi.advanceTimersByTime(600);
-    expect(send).toHaveBeenCalledWith('highlight/save', expect.objectContaining({ id: 'old', note: 'remember' }));
+    expect(send).toHaveBeenCalledWith('highlight/setNote', { id: 'old', note: 'remember' });
     c.stop();
   });
 });

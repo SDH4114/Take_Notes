@@ -115,3 +115,19 @@ describe('highlight long note (body)', () => {
     expect((await highlights.get('b2'))?.body).toBeUndefined();
   });
 });
+
+describe('field updates from the page (stale copy must not win)', () => {
+  it('recolor keeps notes edited in the Library; setNote changes only the short note', async () => {
+    const page = 'https://a.example/p';
+    await highlights.put(hl({ id: 'r1', url: page, note: 'from library', body: 'long' }));
+    await call('highlight/recolor', { id: 'r1', color: '#4ade80' }, pageSender(page));
+    expect(await highlights.get('r1')).toMatchObject({ color: '#4ade80', note: 'from library', body: 'long' });
+    await call('highlight/setNote', { id: 'r1', note: 'new' }, pageSender(page));
+    expect(await highlights.get('r1')).toMatchObject({ note: 'new', body: 'long', color: '#4ade80' });
+    await call('highlight/setNote', { id: 'r1' }, pageSender(page));
+    expect((await highlights.get('r1'))?.note).toBeUndefined();
+    await expect(call('highlight/recolor', { id: 'r1', color: '#000000' }, pageSender('https://evil.example/'))).rejects.toThrow();
+    await call('highlight/recolor', { id: 'r1', color: 'red;x:url(y)' }, pageSender(page));
+    expect((await highlights.get('r1'))?.color).toMatch(/^#[0-9a-f]{6}$/);
+  });
+});

@@ -21,6 +21,8 @@ export interface BackgroundMessages {
   /** `status`: kanban column of the new note (cards created on the board). */
   'clip/create': [{ projectId: string | null; title: string; markdown?: string; status?: string }, Clip];
   'clip/update': [Clip, Clip];
+  /** Change only these fields on the stored clip (no stale copies of text/title/tags). `null` clears a field. */
+  'clip/patch': [{ id: string; patch: { projectId?: string | null; section?: string | null; status?: string | null } }, Clip];
   'clip/delete': [{ id: string }, void];
   'clip/reorder': [{ projectId: string | null; ids: string[] }, void];
   // highlights (owner: highlight module)
@@ -28,6 +30,10 @@ export interface BackgroundMessages {
   'highlight/listAll': [{ projectId?: string | null }, Highlight[]];
   'highlight/save': [Highlight, Highlight];
   'highlight/delete': [{ id: string }, void];
+  /** Change only the color (the page's copy of the notes may be stale). */
+  'highlight/recolor': [{ id: string; color: HighlightColor }, Highlight];
+  /** Change only the short note (from the page popover). */
+  'highlight/setNote': [{ id: string; note?: string }, Highlight];
   /** Move a highlight to another project (extension pages only). */
   'highlight/move': [{ id: string; projectId: string | null }, Highlight];
   /** Palette for the in-page toolbar (default color first). */
@@ -155,18 +161,23 @@ export interface RegisterOptions {
 /** Register handlers; responds only to messages this side owns. */
 export function registerHandlers<M>(handlers: Handlers<M>, opts: RegisterOptions = {}): void {
   const allowed = opts.allowFromWebPages ? new Set(opts.allowFromWebPages) : null;
-  browser.runtime.onMessage.addListener((msg: unknown, sender) => {
+  // Respond with sendResponse + `return true`: Chrome only accepts a returned Promise from version 148 (rolling out
+  // gradually), Firefox supports both. Messages must stay JSON-serializable (Chrome uses JSON, not structured clone).
+  browser.runtime.onMessage.addListener((msg: unknown, sender, sendResponse: (r: unknown) => void) => {
     const m = msg as Envelope;
     if (!m || m.event || typeof m.type !== 'string') return undefined;
     const h = (handlers as Record<string, ((p: unknown, s: unknown) => unknown) | undefined>)[m.type];
     if (!h) return undefined;
     if (allowed && isFromWebPage(sender) && !allowed.has(m.type)) {
-      return Promise.resolve({ ok: false, error: 'Not allowed from a web page' } as Wire<unknown>);
+      sendResponse({ ok: false, error: 'Not allowed from a web page' } as Wire<unknown>);
+      return undefined;
     }
-    return Promise.resolve()
+    Promise.resolve()
       .then(() => h(m.payload, sender))
       .then((data) => ({ ok: true, data }) as Wire<unknown>)
-      .catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }) as Wire<unknown>);
+      .catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }) as Wire<unknown>)
+      .then((res) => { try { sendResponse(res); } catch { /* sender went away (tab closed) */ } });
+    return true;
   });
 }
 

@@ -51,3 +51,18 @@ describe('markHighlightsInHtml', () => {
     expect(html).not.toContain('url(');
   });
 });
+
+describe('code protection (regressions)', () => {
+  it('protects every line of a fenced block, and text after it can still be marked', () => {
+    const md = 'text\n```js\nline1\nline2 needle here\nline3\n```\nafter needle';
+    const { markdown } = markHighlightsInMarkdown(md, [hl('a', 'needle')]);
+    expect(markdown).toBe('text\n```js\nline1\nline2 needle here\nline3\n```\nafter ==needle==');
+  });
+  it('"==" inside code does not count as an open mark', () => {
+    const md = '```\nif a == b {}\n```\nplain words here';
+    expect(markHighlightsInMarkdown(md, [hl('a', 'plain words')]).markdown).toContain('==plain words==');
+  });
+  it('an unclosed fence protects to the end', () => {
+    expect(markHighlightsInMarkdown('```\nsecret word', [hl('a', 'secret word')]).missing).toEqual(['a']);
+  });
+});

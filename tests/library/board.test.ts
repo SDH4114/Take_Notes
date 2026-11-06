@@ -15,9 +15,9 @@ describe('board', () => {
     expect([...groupByColumn(clips, cols).entries()].map(([k, v]) => [k, v.map((c) => c.id)]))
       .toEqual([['todo', ['a', 'c']], ['doing', ['b']], ['done', ['d']]]);
   });
-  it('moves a card into another column before a card or at the end', () => {
-    expect(moveCard(clips, cols, 'a', 'done', 'd')).toEqual({ ids: ['c', 'b', 'a', 'd'], status: 'done' });
-    expect(moveCard(clips, cols, 'a', 'doing')).toEqual({ ids: ['c', 'b', 'a', 'd'], status: 'doing' });
+  it('moves only the card in the project order: before a card, or after the last card of the column', () => {
+    expect(moveCard(clips, cols, 'a', 'done', 'd')).toEqual({ ids: ['b', 'c', 'a', 'd'], status: 'done' });
+    expect(moveCard(clips, cols, 'a', 'doing')).toEqual({ ids: ['b', 'a', 'c', 'd'], status: 'doing' });
     expect(moveCard(clips, cols, 'c', 'todo', 'a').ids).toEqual(['c', 'a', 'b', 'd']);
   });
   it('removing a column keeps at least one and picks the left neighbour', () => {
@@ -35,9 +35,11 @@ describe('cards as to-dos', () => {
     expect(doneColumnId([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }])).toBe('b');
   });
   it('checking moves to the end of the done column, unchecking back to the first open column', () => {
-    expect(toggleDone(clips, cols, 'a')).toEqual({ ids: ['c', 'b', 'd', 'a'], status: 'done' });
+    expect(toggleDone(clips, cols, 'a')).toEqual({ ids: ['b', 'c', 'd', 'a'], status: 'done' });
     expect(isDone(clips[3]!, cols)).toBe(true);
-    expect(toggleDone(clips, cols, 'd')).toEqual({ ids: ['a', 'c', 'd', 'b'], status: 'todo' });
+    expect(toggleDone(clips, cols, 'd')).toEqual({ ids: ['a', 'b', 'c', 'd'], status: 'todo' });
+    // an empty target column keeps the card's place in the Notes order
+    expect(moveCard([clips[0]!, clips[1]!], cols, 'a', 'done').ids).toEqual(['a', 'b']);
     // done column is the first one → unchecking goes to the next column
     const first = setDoneColumn(cols, 'todo');
     expect(toggleDone(clips, first, 'a')?.status).toBe('doing');

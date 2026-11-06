@@ -1,7 +1,7 @@
 {
   "name": "take-notes",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "scripts": {
     "dev": "wxt -b firefox",
@@ -10,7 +10,10 @@
     "lint:ext": "web-ext lint --source-dir .output/firefox-mv3",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare",
+    "dev:chrome": "wxt -b chrome",
+    "build:chrome": "wxt build -b chrome",
+    "zip:chrome": "wxt zip -b chrome"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",

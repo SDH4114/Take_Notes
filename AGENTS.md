@@ -1,7 +1,7 @@
 # AGENTS.md — TakeNotes
 
 ## Purpose
-Firefox extension for school and university students: turn web pages into study material — Markdown/PDF notes, projects (coursework) with a bibliography, highlights, Anki cards, and whole documentation sections saved as one book (e.g. metanit.com → Rust). Audience: CIS + international (RU/EN UI, GOST default, APA/MLA).
+Browser extension (Firefox + Chrome) for school and university students: turn web pages into study material — Markdown/PDF notes, projects (coursework) with a bibliography, highlights, Anki cards, and whole documentation sections saved as one book (e.g. metanit.com → Rust). Audience: CIS + international (RU/EN UI, GOST default, APA/MLA).
 
 ## What it does (target v0.1)
 1. Save page / selection → Markdown (math as `$…$`, tables, code, images downloaded into zip).
@@ -13,13 +13,13 @@ Firefox extension for school and university students: turn web pages into study 
 AI features are deferred.
 
 ## Status
-Prototype v0.7.0 (kanban cards as to-dos + done column, whole-project PDF zip via pdfmake; v0.6: folders in projects, highlight long notes, board export, whole-project exports only; v0.5: kanban: own cards create/delete; Library graph + kanban board, tags/[[wikilinks]], highlights inside notes and exports, whole-project folder export, highlight move/open-note, themes, add-on ID take-notes@amikolabs.com; v0.4: on/off + site blocklist); UI/UX redesign done — Library tab with Markdown editor, new popup/sidebar/options/crawler, jump-to-highlight.
-420 unit tests, build + web-ext lint (0 errors) clean. Tested by Haos in Zen (Firefox-based) at v0.1; v0.2 not yet run in a browser.
+Prototype v0.8.0 (Chrome support: offscreen DOM host, side panel, sendResponse messaging; bug-fix pass; v0.7: kanban cards as to-dos + done column, whole-project PDF zip via pdfmake; v0.6: folders in projects, highlight long notes, board export, whole-project exports only; v0.5: kanban: own cards create/delete; Library graph + kanban board, tags/[[wikilinks]], highlights inside notes and exports, whole-project folder export, highlight move/open-note, themes, add-on ID take-notes@amikolabs.com; v0.4: on/off + site blocklist); UI/UX redesign done — Library tab with Markdown editor, new popup/sidebar/options/crawler, jump-to-highlight.
+452 unit tests, build + web-ext lint (0 errors) clean. Tested by Haos in Zen (Firefox-based) at v0.1; v0.2 not yet run in a browser.
 Known gaps: book chapters keep remote images in PDF; math in PDF is TeX text; `src/crawl/book.ts bookToMarkdown`
 duplicates `src/export/document.ts bookToMarkdownExport` (only tests use it); Library loads full books to count chapters.
 
 ## Stack
-TypeScript, WXT 0.21 (Vite), Manifest V3 for Firefox (background = event page with DOM), Preact, IndexedDB via `idb`, `@mozilla/readability`, `turndown` + `turndown-plugin-gfm`, `dompurify`, `fflate`. CodeMirror 6 (editor), `marked` (preview). `pdfmake` 0.3 + `html-to-pdfmake` 2.5 (whole-project PDF zip; browser builds, Roboto vfs). Tests: Vitest + jsdom (+ `fake-indexeddb`). npm.
+TypeScript, WXT 0.21 (Vite), Manifest V3 for Firefox (background = event page with DOM) and Chrome 116+ (background = service worker, no DOM), Preact, IndexedDB via `idb`, `@mozilla/readability`, `turndown` + `turndown-plugin-gfm`, `dompurify`, `fflate`. CodeMirror 6 (editor), `marked` (preview). `pdfmake` 0.3 + `html-to-pdfmake` 2.5 (whole-project PDF zip; browser builds, Roboto vfs). Tests: Vitest + jsdom (+ `fake-indexeddb`). npm.
 
 ## Structure
 - `entrypoints/background.ts` — merges handler maps from every module's `setup*Background()`.
@@ -41,7 +41,7 @@ Content script extracts/anchors on the page and answers `ContentMessages`. Backg
 ## Commands
 - `npm install` — also runs `wxt prepare` (generates `.wxt/`).
 - `npm run dev` — dev build, launches Firefox with the extension.
-- `npm run build` — production build to `.output/firefox-mv3`.
+- `npm run build` — production build to `.output/firefox-mv3`. `npm run build:chrome` / `dev:chrome` / `zip:chrome` — Chrome (`.output/chrome-mv3`).
 - `npm run zip` — package for AMO.
 - `npm test` — Vitest. `npm run typecheck` — tsc. `npm run lint:ext` — web-ext lint (after build).
 
@@ -67,6 +67,12 @@ Content script extracts/anchors on the page and answers `ContentMessages`. Backg
 - Crawler limited to same origin + path prefix, 1 request at a time, delay ≥1 s, max pages setting.
 
 ## Gotchas
+- Chrome: the service worker has no DOM and no `import()`. DOM work goes through `dom(op)` (`src/core/dom.ts`): in place where `document` exists, else in `entrypoints/offscreen` (Chrome-only entrypoint, reasons DOM_PARSER + BLOBS). Ops: renderMarkdown, extractHtml (crawler), blobUrl/revokeUrl (downloads). Messages to/from offscreen are JSON (Blobs as base64).
+- `registerHandlers` answers with `sendResponse` + `return true` (Chrome accepts a returned Promise only from 148, rolling out). Keep message payloads JSON-serializable.
+- Chrome PDF: no `tabs.saveAsPDF` → print page opens with `&autoprint=1` and calls `window.print()` itself (scripting can't inject into extension pages in Chrome).
+- Sidebar: Firefox `sidebarAction.open()`, Chrome `sidePanel.open({ windowId })`; both must run synchronously in the click.
+- Library sends field changes (folder, column, project) with `clip/patch`, never a full stale `clip/update`. Page popover uses `highlight/recolor` / `highlight/setNote` for the same reason.
+- Kanban moves change only the moved card's place in the project order (`moveCard`).
 - Clips and highlights are separate records joined only by `normalizeUrl(clip.source.url) === highlight.url`; edited note text may no longer contain a highlight → it is still listed in the "Highlights" section of exports.
 - Folders = `clip.section` (one level). Stored list (order + empty folders) in kv `folders:<projectId|__inbox__>`; `folderList()` merges it with sections found on clips. Graph adds a folder node per (project, folder).
 - Highlight has two notes: `note` (short, page popover, shown on sites) and `body` (long Markdown, Library only). `highlight/save` from a web page never changes `body`.

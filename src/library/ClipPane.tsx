@@ -205,13 +205,21 @@ export function ClipPane(p: {
 
   // Tags: saved at once (not part of the debounced text draft).
   const [tags, setTags] = useState<string[]>(p.clip.tags);
-  useEffect(() => setTags(p.clip.tags), [p.clip.tags.join('\n')]);
+  const tagsRef = useRef(tags);
+  const tagSaves = useRef(0);
+  useEffect(() => { if (!tagSaves.current) { tagsRef.current = p.clip.tags; setTags(p.clip.tags); } }, [p.clip.tags.join('\n')]);
   const [tagInput, setTagInput] = useState('');
-  const saveTags = (next: string[]) => { setTags(next); void persist({ tags: next }); };
+  const saveTags = (next: string[]) => {
+    tagsRef.current = next;
+    setTags(next);
+    tagSaves.current++;
+    void persist({ tags: next }).finally(() => { tagSaves.current--; });
+  };
   const addTags = (raw: string) => {
-    const add = raw.split(/[,\s]+/).map(normTag).filter(Boolean).filter((t) => !tags.includes(t));
+    const cur = tagsRef.current;
+    const add = raw.split(/[,\s]+/).map(normTag).filter(Boolean).filter((t) => !cur.includes(t));
     setTagInput('');
-    if (add.length) saveTags([...tags, ...add]);
+    if (add.length) saveTags([...cur, ...add]);
   };
 
   const move = async (projectId: string | null, name: string) => {

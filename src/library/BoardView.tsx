@@ -42,6 +42,8 @@ export function BoardView(p: {
       await p.onCreate(col, title, draft.text.trim());
       setDraft({ title: '', text: '' });
       if (!keepOpen) setComposing(null);
+    } catch (e) {
+      ui.toast(errText(e), true); // the draft stays, nothing typed is lost
     } finally {
       setCreating(false);
     }
@@ -107,7 +109,12 @@ export function BoardView(p: {
       const ok = await ui.confirm(lt('deleteColumn', { name: col.name }), { message: lt('deleteColumnMsg', { n: cards.length, to }), okLabel: ut('delete'), danger: true });
       if (!ok) return;
     }
-    await p.onColumnRemoved(cards, res.fallback);
+    try {
+      await p.onColumnRemoved(cards, res.fallback);
+    } catch (e) {
+      ui.toast(errText(e), true);
+      return; // keep the column: its cards were not moved
+    }
     await saveColumns(res.columns);
   };
 

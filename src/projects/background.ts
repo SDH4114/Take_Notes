@@ -3,14 +3,16 @@ import { broadcast, type BackgroundMessages, type Handlers } from '@/src/core/me
 import { clips, projects, settings } from '@/src/core/storage';
 import type { Clip, Project } from '@/src/core/types';
 import { newId, nowIso } from '@/src/core/util';
-import { renderMarkdown } from '@/src/ui/markdown';
+import { dom } from '@/src/core/dom';
+
+const renderMarkdown = (md: string) => dom('renderMarkdown', { md });
 
 async function updateClip(input: Clip): Promise<Clip> {
   const existing = await clips.get(input.id);
   if (!existing) throw new Error(`Clip not found: ${input.id}`);
   const next: Clip = { ...input, updatedAt: nowIso() };
   // Edited in the editor: the stored html (used for PDF) must follow the markdown.
-  if (input.markdown !== existing.markdown) next.html = renderMarkdown(input.markdown);
+  if (input.markdown !== existing.markdown) next.html = await renderMarkdown(input.markdown);
   // Moving to another project: append at the end there instead of clashing with its order.
   if (input.projectId !== existing.projectId) next.order = await clips.nextOrder(input.projectId);
   await clips.put(next);
@@ -78,10 +80,23 @@ export function setupProjectsBackground(): Handlers<BackgroundMessages> {
 
     'clip/list': ({ projectId }) => clips.listByProject(projectId),
     'clip/update': updateClip,
+    'clip/patch': async ({ id, patch }) => {
+      const existing = await clips.get(id);
+      if (!existing) throw new Error(`Clip not found: ${id}`);
+      const next: Clip = { ...existing };
+      for (const k of ['section', 'status'] as const) {
+        if (!(k in patch)) continue;
+        const v = patch[k];
+        if (v == null || v === '') delete next[k];
+        else next[k] = v;
+      }
+      if ('projectId' in patch) next.projectId = patch.projectId ?? null;
+      return updateClip(next);
+    },
     'clip/create': async ({ projectId, title, markdown = '', status }) => {
       const now = nowIso();
       const clip: Clip = {
-        id: newId(), projectId, kind: 'selection', title: title.trim() || 'Untitled', html: renderMarkdown(markdown), markdown,
+        id: newId(), projectId, kind: 'selection', title: title.trim() || 'Untitled', html: await renderMarkdown(markdown), markdown,
         source: { url: '', title: title.trim(), authors: [], accessed: now }, tags: [], order: await clips.nextOrder(projectId),
         assetIds: [], createdAt: now, updatedAt: now, ...(status ? { status } : {}),
       };

@@ -4,13 +4,20 @@ Firefox extension that turns web pages into study notes: Markdown and PDF export
 
 ## Requirements
 - Node.js 22 (tested with 22.23.1), npm
-- Firefox 140+ (desktop)
+- Firefox 140+ (desktop) or Chrome 116+
 
 ## Install & build
 ```sh
 npm install
 npm run build        # output: .output/firefox-mv3
 ```
+
+## Chrome
+```sh
+npm run build:chrome   # .output/chrome-mv3 → chrome://extensions → Developer mode → Load unpacked
+npm run dev:chrome     # dev build with auto-reload
+```
+In Chrome a PDF of a single note opens the print dialog (choose "Save as PDF"); the whole-project PDF (.zip) works the same as in Firefox.
 
 ## Run
 ```sh

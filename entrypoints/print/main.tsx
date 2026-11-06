@@ -46,6 +46,7 @@ async function main(): Promise<void> {
   document.getElementById('app')!.innerHTML = buildPrintHtml(doc);
   await waitForImages();
   signal(true);
+  if (params.get('autoprint') === '1') setTimeout(() => window.print(), 300);
 }
 
 main().catch((e: unknown) => {

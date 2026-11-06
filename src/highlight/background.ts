@@ -107,6 +107,18 @@ function senderPage(sender: Browser.runtime.MessageSender | undefined): string |
   return normalizeUrl(sender?.tab?.url ?? sender?.url ?? 'about:blank');
 }
 
+async function patchFromPage(id: string, sender: Browser.runtime.MessageSender | undefined, patch: Partial<Highlight>): Promise<Highlight> {
+  const page = senderPage(sender);
+  const h = await highlights.get(id);
+  if (!h) throw new Error(t('unknownHighlight'));
+  if (page && h.url !== page) throw new Error('Highlight belongs to another page');
+  const saved: Highlight = { ...h, ...patch, updatedAt: nowIso() };
+  if ('note' in patch && patch.note === undefined) delete saved.note;
+  await highlights.put(saved);
+  broadcast('data/changed', { kind: 'highlight' });
+  return saved;
+}
+
 /** Message handlers (exported separately so they can be tested without the extension APIs). */
 export function createHighlightHandlers(): Handlers<BackgroundMessages> {
   return {
@@ -145,6 +157,10 @@ export function createHighlightHandlers(): Handlers<BackgroundMessages> {
       const s = await settings.get();
       return { colors: orderedPalette(s.highlightPalette, s.highlightColor), defaultColor: colorHex(s.highlightColor) };
     },
+
+    // Field-level updates from the page: never write back the page's possibly stale copy of other fields.
+    'highlight/recolor': async ({ id, color }, sender) => patchFromPage(id, sender, { color: colorHex(color) }),
+    'highlight/setNote': async ({ id, note }, sender) => patchFromPage(id, sender, { note: note?.trim() ? note : undefined }),
 
     'highlight/move': async ({ id, projectId }, sender) => {
       if (isFromWebPage(sender)) throw new Error('Not allowed from a web page');

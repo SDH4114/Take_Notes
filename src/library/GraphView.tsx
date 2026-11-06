@@ -122,7 +122,7 @@ export function GraphView(p: {
         <Empty icon="graph" title={lt('graphEmpty')} text={lt('graphEmptyText')} />
       ) : (
         <svg ref={svgRef} class="graph-canvas" onWheel={onWheel} onPointerDown={(e) => onDown(e)} onPointerMove={onMove}
-          onPointerUp={onUp} onPointerLeave={() => setHover(null)} role="img" aria-label={lt('graph')}>
+          onPointerUp={onUp} onPointerCancel={() => { drag.current = null; }} onPointerLeave={() => setHover(null)} role="img" aria-label={lt('graph')}>
           <g transform={`translate(${svgRef.current ? svgRef.current.clientWidth / 2 + view.x : view.x} ${svgRef.current ? svgRef.current.clientHeight / 2 + view.y : view.y}) scale(${view.k})`}>
             {graph.edges.map((e) => {
               const a = pos.current.get(e.source), b = pos.current.get(e.target);

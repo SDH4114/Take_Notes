@@ -47,6 +47,7 @@ export function App() {
   const [focusHl, setFocusHl] = useState<{ clip: string; id: string } | undefined>();
   const searchRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => { setFocusHl((f) => (f && f.clip !== nav.clip ? undefined : f)); }, [nav.clip]);
   const go = useCallback((patch: Partial<LibraryState>) => setNav((n) => ({ ...n, ...patch })), []);
 
   // ---- data
@@ -135,7 +136,7 @@ export function App() {
   });
 
   const moveClip = (c: Clip, projectId: string | null, name: string) => run(async () => {
-    await send('clip/update', { ...c, projectId });
+    await send('clip/patch', { id: c.id, patch: { projectId } });
     ui.toast(lt('moved', { name }));
     await load();
   });
@@ -148,7 +149,7 @@ export function App() {
     }).filter(Boolean)));
     try {
       const c = moved && byId.get(moved.id);
-      if (c) await send('clip/update', { ...c, section: moved!.section });
+      if (c) await send('clip/patch', { id: c.id, patch: { section: moved!.section ?? null } });
       await send('clip/reorder', { projectId: nav.project, ids });
     } finally {
       await load();
@@ -174,7 +175,7 @@ export function App() {
     if (!list) return ui.toast(lt('folderExists'), true);
     const name = folderName(to);
     for (const c of clips.filter((x) => folderName(x.section).toLowerCase() === from.toLowerCase())) {
-      await send('clip/update', { ...c, section: name });
+      await send('clip/patch', { id: c.id, patch: { section: name } });
     }
     await saveFolders(list);
     await load();
@@ -182,12 +183,12 @@ export function App() {
   const deleteFolder = (name: string) => run(async () => {
     const inside = clips.filter((x) => folderName(x.section).toLowerCase() === name.toLowerCase());
     if (inside.length && !(await ui.confirm(lt('deleteFolder', { name }), { message: lt('deleteFolderMsg', { n: inside.length }), okLabel: ut('delete'), danger: true }))) return;
-    for (const c of inside) await send('clip/update', { ...c, section: undefined });
+    for (const c of inside) await send('clip/patch', { id: c.id, patch: { section: null } });
     await saveFolders(projectFolders.filter((f) => f !== name));
     await load();
   });
   const moveToFolder = (c: Clip, folder: string | null) => run(async () => {
-    await send('clip/update', { ...c, section: folder ?? undefined });
+    await send('clip/patch', { id: c.id, patch: { section: folder } });
     ui.toast(lt('movedToFolder', { name: folder ?? lt('noFolder') }));
     await load();
   });
@@ -231,21 +232,22 @@ export function App() {
     // Optimistic: show the new column/order at once, then persist.
     setClipMap((m) => new Map(m).set(nav.project, ids.map((id, i) => ({ ...byId.get(id)!, order: i, ...(id === c.id ? { status } : {}) }))));
     try {
-      if (c.status !== status) await send('clip/update', { ...c, status });
+      if (c.status !== status) await send('clip/patch', { id: c.id, patch: { status } });
       await send('clip/reorder', { projectId: nav.project, ids });
     } finally {
       await load();
     }
   });
-  const createCard = (column: string, title: string, text: string) => run(async () => {
+  // Not wrapped in run(): BoardView keeps the draft when this throws.
+  const createCard = async (column: string, title: string, text: string) => {
     await send('clip/create', { projectId: nav.project, title, markdown: text, status: column });
     await load();
-  });
+  };
 
-  const columnRemoved = (moved: Clip[], fallback: string) => run(async () => {
-    for (const c of moved) await send('clip/update', { ...c, status: fallback });
+  const columnRemoved = async (moved: Clip[], fallback: string) => {
+    for (const c of moved) await send('clip/patch', { id: c.id, patch: { status: fallback } });
     await load();
-  });
+  };
 
   const moveHighlight = (h: Highlight, projectId: string | null, name: string) => run(async () => {
     await send('highlight/move', { id: h.id, projectId });

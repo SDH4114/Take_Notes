@@ -196,9 +196,10 @@ describe('highlights in exports', () => {
     expect(files['Same 2.md']).toContain('](images/a.png)');
     const hl = files['highlights/001 - Intro.md']!;
     expect(hl).toContain('# Intro\n\n> Intro');
-    expect(hl).toMatch(/Note: \[\[(Same|Deep)\]\]/); // all test notes share one page URL
+    expect(hl).toMatch(/Note: \[\[(Same|Same 2|Ch 1\/Deep)\]\]/); // link = real file path; all test notes share one URL
     expect(hl).toContain('## Short note\n\nshort');
     expect(hl).toContain('## Note\n\n### Big');
-    expect(files['board.md']).toBe('---\nkanban-plugin: basic\n---\n\n# Board: P\n\n## To read\n\n- [ ] [[Same]]\n\n## Done\n\n- [ ] [[Same]]\n- [ ] [[Deep]]\n');
+    // links point at the real files (duplicate titles, folders)
+    expect(files['board.md']).toBe('---\nkanban-plugin: basic\n---\n\n# Board: P\n\n## To read\n\n- [ ] [[Same|Same]]\n\n## Done\n\n- [ ] [[Same 2|Same]]\n- [ ] [[Ch 1/Deep|Deep]]\n');
   });
 });
