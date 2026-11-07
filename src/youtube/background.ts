@@ -6,9 +6,10 @@ import { newId, nowIso } from '@/src/core/util';
 
 export function setupYoutubeBackground(): Handlers<BackgroundMessages> {
   return {
-    'youtube/saveTranscript': async ({ tabId, projectId }) => {
+    'youtube/tracks': async ({ tabId }) => sendToTab(await resolveTabId(tabId), 'content/youtubeTracks'),
+    'youtube/saveTranscript': async ({ tabId, projectId, lang, kind }) => {
       const tab = await resolveTabId(tabId);
-      const r = await sendToTab(tab, 'content/youtubeTranscript');
+      const r = await sendToTab(tab, 'content/youtubeTranscript', lang ? { languageCode: lang, kind } : {});
       if (!r) return null;
       const pid = projectId !== undefined ? projectId : (await settings.get()).defaultProjectId;
       const now = nowIso();

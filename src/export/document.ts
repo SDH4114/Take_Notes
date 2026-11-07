@@ -2,7 +2,7 @@
 import { formatBibliography } from '@/src/cite';
 import { uiLang, type Lang } from '@/src/core/i18n';
 import type { BoardColumn, Book, Clip, Highlight, Project, Settings, SourceMeta } from '@/src/core/types';
-import { normalizeUrl, slugifyFilename } from '@/src/core/util';
+import { clipHighlightUrl, isNoteHighlightUrl, normalizeUrl, slugifyFilename } from '@/src/core/util';
 import { exportT } from './strings';
 import { highlightsForClip, markHighlightsInMarkdown } from '@/src/highlight/apply';
 import { highlightsToMarkdown } from '@/src/highlight/markdown';
@@ -74,6 +74,11 @@ function ghSlug(text: string): string {
 
 const wikiSafe = (s: string) => s.replace(/[[\]|#^]/g, ' ').replace(/\s+/g, ' ').trim();
 
+/** `sourceLine` + blank line, or nothing for own notes (no source URL: written by hand or imported). */
+function sourceBlock(s: SourceMeta, lang: Lang): string {
+  return s.url ? `${sourceLine(s, lang)}\n\n` : '';
+}
+
 function sourceLine(s: SourceMeta, lang: Lang): string {
   const t = exportT(lang);
   return `${t('source')}: [${s.title || s.url}](${s.url}) (${t('accessed')} ${day(s.accessed)})`;
@@ -104,9 +109,9 @@ function highlightQuotes(list: readonly Highlight[], level: number, lang: Lang):
   return out;
 }
 
-/** Highlights relevant to a set of clips: made on their pages or filed in the project itself. */
+/** Highlights relevant to a set of clips: made on their pages (or in their own notes) or filed in the project itself. */
 export function projectHighlights(clips: readonly Clip[], all: readonly Highlight[], projectId: string | null | undefined): Highlight[] {
-  const urls = new Set(clips.filter((c) => c.source.url).map((c) => normalizeUrl(c.source.url)));
+  const urls = new Set(clips.map(clipHighlightUrl));
   return all.filter((h) => urls.has(h.url) || (projectId !== undefined && h.projectId === projectId))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
@@ -127,7 +132,7 @@ export function clipToMarkdown(clip: Clip, settings: Settings, lang: Lang = uiLa
       ['tags', uniq(['takenotes', ...clip.tags.map(obsidianTag)].filter(Boolean))],
     ]) + '\n';
   }
-  out += `# ${clip.title}\n\n${sourceLine(s, lang)}\n\n${noteCallout(clip.note)}`;
+  out += `# ${clip.title}\n\n${sourceBlock(s, lang)}${noteCallout(clip.note)}`;
   out += `${shiftHeadings(stripLeadingTitle(markedBody(clip, hls), clip.title), 1).trimEnd()}\n`;
   const quotes = highlightQuotes(highlightsForClip(clip, hls), 2, lang);
   if (quotes) out += `\n${quotes.trimEnd()}\n`;
@@ -143,6 +148,7 @@ export function inboxName(lang: Lang = uiLang()): string {
 function bibliography(sources: SourceMeta[], style: Project['citationStyle'], lang: Lang): string {
   const seen = new Set<string>();
   const unique = sources.filter((s) => {
+    if (!s.url) return false; // own notes have no source to cite
     const k = normalizeUrl(s.url);
     if (seen.has(k)) return false;
     seen.add(k);
@@ -186,7 +192,7 @@ export function projectToMarkdown(
     if (section) out += `${heading(2, section)}\n\n`;
     const level = section ? 3 : 2;
     for (const c of list) {
-      out += `${heading(level, c.title)}\n\n${sourceLine(c.source, lang)}\n\n${noteCallout(c.note)}`;
+      out += `${heading(level, c.title)}\n\n${sourceBlock(c.source, lang)}${noteCallout(c.note)}`;
       out += `${shiftHeadings(stripLeadingTitle(markedBody(c, hls), c.title), level).trimEnd()}\n\n`;
     }
   }
@@ -225,13 +231,14 @@ export function highlightFile(h: Highlight, settings: Settings, lang: Lang, note
   let out = '';
   if (settings.obsidian.frontmatter) {
     out += frontmatter([
-      ['source', h.source.url || h.url], ['site', h.source.siteName], ['accessed', day(h.source.accessed)],
+      // A note key (takenotes-note:…) is not a source; the "from note" line links the note instead.
+      ['source', h.source.url || (isNoteHighlightUrl(h.url) ? '' : h.url)], ['site', h.source.siteName], ['accessed', day(h.source.accessed)],
       ['created', day(h.createdAt)], ['color', h.color], ['tags', ['takenotes', 'highlight']],
     ]) + '\n';
   }
   out += `# ${snippetTitle(h.text)}\n\n`;
   out += `${h.text.trim().split(/\r?\n/).map((l) => `> ${l}`).join('\n')}\n\n`;
-  out += `${sourceLine(h.source, lang)}\n\n`;
+  out += sourceBlock(h.source, lang);
   if (noteTitle) out += `${t('fromNote')}: ${settings.obsidian.wikilinks ? `[[${wikiSafe(noteTitle)}]]` : noteTitle}\n\n`;
   if (h.note?.trim()) out += `${heading(2, t('shortNote'))}\n\n${h.note.trim()}\n\n`;
   if (h.body?.trim()) out += `${heading(2, t('longNote'))}\n\n${shiftHeadings(h.body.trim(), 2)}\n`;
@@ -343,7 +350,7 @@ export function projectToFolderFiles(
 
   if (hls.length) {
     const hlNames = highlightFileNames(hls);
-    const noteByUrl = new Map(sorted.filter((c) => c.source.url).map((c) => [normalizeUrl(c.source.url), layout.path.get(c.id)!] as const));
+    const noteByUrl = new Map(sorted.map((c) => [clipHighlightUrl(c), layout.path.get(c.id)!] as const));
     index += `${heading(2, t('highlights'))}\n\n`;
     hls.forEach((h, i) => {
       const path = `highlights/${hlNames[i]}`;

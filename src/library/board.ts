@@ -76,3 +76,26 @@ export function removeColumn(columns: readonly BoardColumn[], id: string): { col
   const next = columns.filter((c) => c.id !== id);
   return { columns: next, fallback: (columns[i - 1] ?? columns[i + 1])!.id };
 }
+
+/**
+ * Columns for an imported board (names in board order). `base` = the board the cards land on (stored or default).
+ * A column whose name matches one in `base` (case-insensitive) reuses its id and done flag. `replace`: the board
+ * becomes exactly the imported columns (a fresh project); otherwise unmatched names are appended to `base`, so
+ * existing cards keep their columns. `ids[i]` = column id for `names[i]`.
+ */
+export function importColumns(
+  base: readonly BoardColumn[], names: readonly string[], makeId: () => string, replace: boolean,
+): { columns: BoardColumn[]; ids: string[] } {
+  const key = (s: string) => s.trim().toLowerCase();
+  const pool = new Map(base.map((c) => [key(c.name), c] as const));
+  const added: BoardColumn[] = [];
+  const ids = names.map((name) => {
+    const hit = pool.get(key(name)) ?? added.find((c) => key(c.name) === key(name));
+    if (hit) { if (replace && !added.includes(hit)) added.push(hit); return hit.id; }
+    const col = { id: makeId(), name: name.trim() };
+    added.push(col);
+    return col.id;
+  });
+  if (replace) return { columns: added, ids };
+  return { columns: [...base, ...added], ids };
+}

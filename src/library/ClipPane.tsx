@@ -1,7 +1,7 @@
 // Right pane of the library: the selected clip (title, meta, personal note, read / edit / split).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { send } from '@/src/core/messages';
-import { clips as clipStore } from '@/src/core/storage';
+import { assets as assetStore, clips as clipStore } from '@/src/core/storage';
 import type { Clip, Highlight, Project } from '@/src/core/types';
 import { markHighlightsInHtml } from '@/src/highlight/apply';
 import { normTag } from './graph';
@@ -13,6 +13,7 @@ import { renderMarkdown } from '@/src/ui/markdown';
 import { ut } from '@/src/ui/strings';
 import { relativeDate } from './logic';
 import { lt } from './strings';
+import { it as importT } from '@/src/import/strings';
 
 type Mode = 'view' | 'edit' | 'split';
 const MODE_KEY = 'tn.library.mode';
@@ -32,6 +33,17 @@ function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(id);
   }, [value, ms]);
   return v;
+}
+
+/** Open the original file of an imported note (PDF kept as an Asset) in a new tab; the browser's viewer shows it. */
+async function openOriginal(c: Clip): Promise<void> {
+  const found = await assetStore.getMany(c.assetIds ?? []);
+  const pdf = found.find((a) => a.mime === 'application/pdf');
+  if (!pdf) throw new Error(importT('originalMissing'));
+  const url = URL.createObjectURL(pdf.data);
+  window.open(url, '_blank');
+  // The new tab has loaded it by then; keep memory from piling up while the Library stays open.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 const kindLabel = (c: Clip): string => {
@@ -250,6 +262,11 @@ export function ClipPane(p: {
             <a class="meta-link truncate" href={c.source.url} target="_blank" rel="noopener noreferrer" title={c.source.url}>
               <Icon name="external" size={13} />{domainOf(c.source.url)}
             </a>
+          )}
+          {(c.assetIds?.length ?? 0) > 0 && (
+            <button type="button" class="btn sm ghost" onClick={() => openOriginal(c).catch((e) => ui.toast(errText(e), true))}>
+              <Icon name="file" size={13} />{importT('original')}
+            </button>
           )}
           <span class="muted small" title={full(c.updatedAt)}>{relativeDate(c.updatedAt)}</span>
           <span class="badge">{kindLabel(c)}</span>

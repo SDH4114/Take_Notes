@@ -3,7 +3,7 @@
 import { uiLang } from '@/src/core/i18n';
 import { clips as clipStore, highlights as hlStore, projects, settings as settingsStore } from '@/src/core/storage';
 import type { Clip, Project, Settings } from '@/src/core/types';
-import { normalizeUrl, slugifyFilename } from '@/src/core/util';
+import { clipHighlightUrl, slugifyFilename } from '@/src/core/util';
 import type { Artifact, BuildIO } from './build';
 import { loadBoard } from './data';
 import { highlightFileNames, inboxName, projectHighlights, projectLayout, snippetTitle } from './document';
@@ -28,7 +28,7 @@ export async function buildProjectPdfZip(
   const folder = slugifyFilename(proj.name);
   const jobs: { path: string; doc: () => PrintDoc }[] = [];
   for (const c of sorted) jobs.push({ path: `${layout.path.get(c.id)!}.pdf`, doc: () => clipPrintDoc(c, lang, hls) });
-  const noteByUrl = new Map(sorted.filter((c) => c.source.url).map((c) => [normalizeUrl(c.source.url), c.title] as const));
+  const noteByUrl = new Map(sorted.map((c) => [clipHighlightUrl(c), c.title] as const));
   highlightFileNames(hls).forEach((name, i) => {
     const h = hls[i]!;
     jobs.push({ path: `highlights/${name.replace(/\.md$/, '.pdf')}`, doc: () => highlightPrintDoc(h, snippetTitle(h.text), lang, noteByUrl.get(h.url)) });

@@ -106,6 +106,9 @@ export interface BoardColumn {
   done?: boolean;
 }
 
+/** A YouTube caption track as offered in the language picker (no URLs). kind 'asr' = auto-generated. */
+export interface TrackInfo { languageCode: string; kind?: string; label: string }
+
 export interface TocEntry {
   url: string;
   title: string;

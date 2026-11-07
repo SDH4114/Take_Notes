@@ -16,6 +16,24 @@ export function normalizeUrl(raw: string): string {
   }
 }
 
+/**
+ * Highlights join their note by `Highlight.url`. A note without a source URL (own / imported) has no page, so its
+ * highlights carry this synthetic per-note key instead: two url-less notes never share highlights, and no web page
+ * (content scripts, highlight/listForUrl) can ever match it.
+ */
+const NOTE_URL_PREFIX = 'takenotes-note:';
+export const noteHighlightUrl = (clipId: string): string => `${NOTE_URL_PREFIX}${clipId}`;
+export const isNoteHighlightUrl = (url: string): boolean => url.startsWith(NOTE_URL_PREFIX);
+/** Clip id inside a note key, or null for page URLs. */
+export const noteIdOfHighlightUrl = (url: string): string | null => (isNoteHighlightUrl(url) ? url.slice(NOTE_URL_PREFIX.length) || null : null);
+/** True when a highlight's url is a real page that can be opened (not a note key, not empty). */
+export const isPageHighlightUrl = (url: string): boolean => !!url && !isNoteHighlightUrl(url);
+
+/** The `Highlight.url` that belongs to a clip: its normalized page URL, or the note key for url-less notes. */
+export function clipHighlightUrl(clip: { id: string; source: { url: string } }): string {
+  return clip.source.url ? normalizeUrl(clip.source.url) : noteHighlightUrl(clip.id);
+}
+
 /** Safe filename for downloads (keeps Cyrillic). */
 export function slugifyFilename(name: string, max = 80): string {
   const s = name

@@ -9,17 +9,18 @@ Browser extension (Firefox + Chrome) for school and university students: turn we
 3. Bibliography: GOST R 7.0.100-2018, APA 7, MLA 9; access date set automatically.
 4. Highlights (colors + notes) restored on revisit; export highlights only.
 5. Docs crawler: detect TOC (or user picks the menu), crawl same-origin + path-prefix slowly, assemble a book (MD / PDF / folder of .md).
-6. Anki export (TSV), Obsidian frontmatter + `[[wikilinks]]`, YouTube transcript → .md.
+6. Anki export (TSV), Obsidian frontmatter + `[[wikilinks]]`, YouTube transcript → .md (language picked in the popup).
+7. Import own notes into the Library: folder / zip of .md (Obsidian vault, our project export) and PDF (text → Markdown, original kept).
 AI features are deferred.
 
 ## Status
-Prototype v0.8.1 (logo/icons; v0.8.0: Chrome support: offscreen DOM host, side panel, sendResponse messaging; bug-fix pass; v0.7: kanban cards as to-dos + done column, whole-project PDF zip via pdfmake; v0.6: folders in projects, highlight long notes, board export, whole-project exports only; v0.5: kanban: own cards create/delete; Library graph + kanban board, tags/[[wikilinks]], highlights inside notes and exports, whole-project folder export, highlight move/open-note, themes, add-on ID take-notes@amikolabs.com; v0.4: on/off + site blocklist); UI/UX redesign done — Library tab with Markdown editor, new popup/sidebar/options/crawler, jump-to-highlight.
-452 unit tests, build + web-ext lint (0 errors) clean. Tested by Haos in Zen (Firefox-based) at v0.1; v0.2 not yet run in a browser.
+Prototype v0.9.0 (import of own notes: .md folders/zips + PDF via pdf.js; YouTube caption language picker; v0.8.1: logo/icons; v0.8.0: Chrome support: offscreen DOM host, side panel, sendResponse messaging; bug-fix pass; v0.7: kanban cards as to-dos + done column, whole-project PDF zip via pdfmake; v0.6: folders in projects, highlight long notes, board export, whole-project exports only; v0.5: kanban: own cards create/delete; Library graph + kanban board, tags/[[wikilinks]], highlights inside notes and exports, whole-project folder export, highlight move/open-note, themes, add-on ID take-notes@amikolabs.com; v0.4: on/off + site blocklist); UI/UX redesign done — Library tab with Markdown editor, new popup/sidebar/options/crawler, jump-to-highlight.
+523 unit tests, build + web-ext lint (0 errors) clean. Tested by Haos in Zen (Firefox-based) at v0.1; v0.9 import and YouTube picker not yet run in a browser.
 Known gaps: book chapters keep remote images in PDF; math in PDF is TeX text; `src/crawl/book.ts bookToMarkdown`
 duplicates `src/export/document.ts bookToMarkdownExport` (only tests use it); Library loads full books to count chapters.
 
 ## Stack
-TypeScript, WXT 0.21 (Vite), Manifest V3 for Firefox (background = event page with DOM) and Chrome 116+ (background = service worker, no DOM), Preact, IndexedDB via `idb`, `@mozilla/readability`, `turndown` + `turndown-plugin-gfm`, `dompurify`, `fflate`. CodeMirror 6 (editor), `marked` (preview). `pdfmake` 0.3 + `html-to-pdfmake` 2.5 (whole-project PDF zip; browser builds, Roboto vfs). Tests: Vitest + jsdom (+ `fake-indexeddb`). npm.
+TypeScript, WXT 0.21 (Vite), Manifest V3 for Firefox (background = event page with DOM) and Chrome 116+ (background = service worker, no DOM), Preact, IndexedDB via `idb`, `@mozilla/readability`, `turndown` + `turndown-plugin-gfm`, `dompurify`, `fflate`, `pdfjs-dist` 6 (PDF import, lazy). CodeMirror 6 (editor), `marked` (preview). `pdfmake` 0.3 + `html-to-pdfmake` 2.5 (whole-project PDF zip; browser builds, Roboto vfs). Tests: Vitest + jsdom (+ `fake-indexeddb`). npm.
 
 ## Structure
 - `entrypoints/background.ts` — merges handler maps from every module's `setup*Background()`.
@@ -33,6 +34,7 @@ TypeScript, WXT 0.21 (Vite), Manifest V3 for Firefox (background = event page wi
 - `src/core/` — `types.ts` (data model), `messages.ts` (typed message contract + sender allowlist), `storage.ts` (IndexedDB), `i18n.ts`, `util.ts`, `dom-guard.ts` (isTrusted / closed shadow for page UI).
 - `src/cite/` — source metadata + GOST/APA/MLA formatting. `src/markdown/` — HTML→MD (Turndown).
 - `src/sites/` — global on/off + blocked sites: `rules.ts` (pure matching), `store.ts` (storage.local), `content.ts` (`gateHandlers`, `watchSiteActive`), `background.ts` (hides menu items via `menus.onShown`).
+- `src/import/` — import of own notes (runs in the Library page, no background part): `parse.ts` (pure: frontmatter, note fields, folders, image embedding), `pdf.ts` (pure layout → Markdown + lazy pdf.js `extractPdf`), `run.ts` (`collectFiles` / `importFiles`: zip via fflate, writes via storage.ts). UI: `src/library/ImportMenu.tsx`.
 - `src/<module>/` — `extract`, `projects`, `highlight`, `crawl`, `export`, `youtube`; each has `background.ts` / `content.ts` setup functions and its own `strings.ts`.
 - `tests/` — unit tests + `tests/fixtures/` HTML.
 
@@ -97,5 +99,13 @@ Content script extracts/anchors on the page and answers `ContentMessages`. Backg
 - `settings.defaultProjectId` = active project, set by popup and sidebar; hotkeys/menu/highlights save there.
 - Min Firefox 140 (for `data_collection_permissions`).
 - IndexedDB cannot index `null`: Inbox clips/highlights are stored with `_project = '__inbox__'` (handled in `storage.ts`).
+- Import: notes are `kind: 'selection'` with `source.url = ''` (shown as "Note"; exports skip the source line and bibliography entry for them). Local images become reference-style data URLs at the end of the note (`![a][img-1]` … `[img-1]: <data:…>`): DOMPurify keeps `data:` on `<img>`, so preview, PDF and exports need no extra storage. Images > 5 MB stay as links.
+- Imported PDF original = an `Asset` (`mime application/pdf`, url `takenotes-import:…`) listed in `clip.assetIds`; `clips.delete` / `projects.delete` delete the clip's `assetIds` (only imports fill them; web images are cached by URL and shared). Library "Original PDF" opens it as a blob URL.
+- pdf.js worker is emitted by Vite from `pdfjs-dist/build/pdf.worker.min.mjs?url` (1.3 MB asset); pdf.js itself is a lazy chunk loaded only by `ImportMenu` → `run.ts` → `pdf.ts`. No `cMapUrl` / `standardFontDataUrl` bundled: PDFs with CID fonts lacking ToUnicode may extract badly. web-ext lint: pdf.js adds 2 UNSAFE_VAR_ASSIGNMENT warnings (not reached for text extraction).
+- PDF layout heuristics (`itemsToMarkdown`): headings = size ≥ 1.18× body median; new block on vertical gap > 1.7× line size, on a short line (ends > 20% before the column's right edge) followed by a capital, or on an indented capital after a finished sentence; ≥ 2 consecutive fully indented blocks = list (bullets drawn as graphics); list continuation must be indented past the bullet; line-end hyphen dropped only after Cyrillic (Latin keeps compounds like lower-order); running headers/footers removed only with ≥ 3 pages. Scan = < 20 letters per page → note just points to the original (no OCR).
+- Import of our own project zip: detected by root `index.md` with frontmatter tag `takenotes` (index skipped). `highlights/*.md` → Highlight records (linked to their note via "From note: [[path]]", then page URL, then text); the `==…==` marks the export added for them are removed; `board.md` → board columns + `clip.status` (existing project: columns matched by name, new ones appended). The export's trailing "Highlights" section and heading shift are undone on import.
+- `==text==` in imported notes (not our export) → a Highlight per mark, `==` removed from the note text.
+- Highlights of url-less notes use `Highlight.url = takenotes-note:<clipId>` (`noteHighlightUrl`); join clips ↔ highlights ONLY via `clipHighlightUrl(clip)` (src/core/util.ts), never `normalizeUrl(clip.source.url)` (two url-less notes would share highlights). No web page matches the key; `highlight/open` opens the Library note for it; exports print a plain heading instead of a link.
+- YouTube: popup asks `youtube/tracks` first; >1 track → picker, last language in `localStorage` `tn.ytLang`. timedtext `baseUrl` now returns HTTP 200 with an empty body without the player's PO token (checked 2026-11) → fallback reads the transcript panel: content script clicks YouTube's "Show transcript" button, waits for segments (old `ytd-transcript-segment-renderer` and new `transcript-segment-view-model` markup, one panel only), switches the panel language menu to the picked track when it can, closes the panel if it opened it. No innertube client spoofing / PO-token scraping (deliberate). `source.url` = clean `watch?v=ID`; `source.lang` only when the language is confirmed.
 - `vitest.config.ts` imports `WxtVitest` from `wxt/testing/vitest-plugin` (not `wxt/testing`).
 - The sidebar entrypoint must be named `sidepanel` for WXT to emit `sidebar_action`.

@@ -3,7 +3,7 @@ import { browser, type Browser } from 'wxt/browser';
 import { broadcast, isFromWebPage, sendToTab, type BackgroundMessages, type Handlers } from '@/src/core/messages';
 import { highlights, settings } from '@/src/core/storage';
 import type { Highlight } from '@/src/core/types';
-import { normalizeUrl, nowIso } from '@/src/core/util';
+import { normalizeUrl, noteIdOfHighlightUrl, nowIso } from '@/src/core/util';
 import { colorHex, orderedPalette } from '@/src/core/colors';
 import { t } from './strings';
 
@@ -84,6 +84,13 @@ async function focusWithRetry(tabId: number, id: string, deps: OpenDeps): Promis
 export async function openHighlight(id: string, deps: OpenDeps = defaultOpenDeps()): Promise<void> {
   const h = await deps.getHighlight(id);
   if (!h) throw new Error(t('unknownHighlight'));
+  // Highlight of an own / imported note (no web page): show that note in the Library instead of opening a tab.
+  const noteId = noteIdOfHighlightUrl(h.url);
+  if (noteId) {
+    const q = new URLSearchParams({ project: h.projectId ?? '__inbox__', clip: noteId });
+    await deps.tabs.create(`${browser.runtime.getURL('/library.html')}?${q}`);
+    return;
+  }
   const existing = (await deps.tabs.query()).find((tab) => tab.id != null && tab.url && normalizeUrl(tab.url) === h.url);
   let tabId: number;
   if (existing?.id != null) {

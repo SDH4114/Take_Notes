@@ -83,3 +83,16 @@ describe('highlightsToMarkdown', () => {
     expect(highlightsToMarkdown([h])).toContain('## [A \\[b\\]](https://a.b/)');
   });
 });
+
+describe('highlights of own notes (no page)', () => {
+  const own = (id: string, note: string, text: string): Highlight => ({
+    id, url: `takenotes-note:${note}`, color: '#ffff00', anchor: { exact: text, prefix: '', suffix: '' }, text,
+    source: { url: '', title: `Note ${note}`, authors: [], accessed: '2026-01-01T00:00:00Z' }, projectId: null,
+    createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+  });
+  it('one plain heading per note, no empty link', () => {
+    const md = highlightsToMarkdown([own('a', 'n1', 'one'), own('b', 'n2', 'two'), own('c', 'n1', 'three')]);
+    expect(md).toBe('## Note n1\n\n> one\n\n> three\n\n## Note n2\n\n> two\n');
+    expect(md).not.toContain('](');
+  });
+});

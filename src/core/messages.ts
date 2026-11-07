@@ -3,7 +3,7 @@ import { browser, type Browser } from 'wxt/browser';
 import { translator } from './i18n';
 import type {
   Book, Clip, CrawlProgress, ExportFormat, ExtractResult, Highlight,
-  HighlightColor, Project, TocEntry,
+  HighlightColor, Project, TocEntry, TrackInfo,
 } from './types';
 
 /** Messages handled by the background script. */
@@ -54,7 +54,9 @@ export interface BackgroundMessages {
   'export/board': [{ projectId: string | null; format: 'md' | 'pdf' }, void];
   'export/highlights': [{ url?: string; projectId?: string | null; format: ExportFormat }, void];
   // youtube (owner: youtube module)
-  'youtube/saveTranscript': [{ tabId?: number; projectId?: string | null }, Clip | null];
+  'youtube/tracks': [{ tabId?: number }, TrackInfo[]];
+  /** `lang` + `kind` = the track picked in the popup; missing = automatic choice. */
+  'youtube/saveTranscript': [{ tabId?: number; projectId?: string | null; lang?: string; kind?: string }, Clip | null];
 }
 
 /** Messages handled by the content script (sent with tabs.sendMessage). */
@@ -67,7 +69,8 @@ export interface ContentMessages {
   'content/focusHighlight': [{ id: string }, boolean];
   'content/detectToc': [void, TocEntry[]];
   'content/pickToc': [void, TocEntry[]];
-  'content/youtubeTranscript': [void, ExtractResult | null];
+  'content/youtubeTracks': [void, TrackInfo[]];
+  'content/youtubeTranscript': [{ languageCode?: string; kind?: string }, ExtractResult | null];
 }
 
 /** Broadcast events (runtime.sendMessage, no response expected). */

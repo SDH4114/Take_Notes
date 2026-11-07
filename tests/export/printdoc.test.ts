@@ -101,3 +101,13 @@ describe('buildPrintHtml', () => {
     expect(html).not.toContain('javascript:');
   });
 });
+
+describe('own notes in PDF', () => {
+  it('no source line and no bibliography for a note without URL', () => {
+    const own = clip({ source: { ...source, url: '', title: '' } });
+    expect(clipPrintDoc(own, 'en').source).toBeUndefined();
+    const project: Project = { id: 'p', name: 'P', citationStyle: 'apa', createdAt: '', updatedAt: '' };
+    expect(projectPrintDoc(project, [own], 'en').bibliography).toEqual([]);
+    expect(buildPrintHtml(clipPrintDoc(own, 'en'))).not.toContain('class="meta">Source');
+  });
+});

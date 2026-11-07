@@ -25,6 +25,7 @@ const dict = {
     settings: 'Настройки',
     openClip: 'Открыть',
     noTranscript: 'Субтитры не найдены',
+    chooseLang: 'На каком языке сохранить субтитры?',
   },
   en: {
     menuSelection: 'Save selection to TakeNotes',
@@ -50,6 +51,7 @@ const dict = {
     settings: 'Settings',
     openClip: 'Open',
     noTranscript: 'No transcript found',
+    chooseLang: 'Which language should the transcript be in?',
   },
 } satisfies Dict<string>;
 

@@ -1,0 +1,48 @@
+import { translator, type Dict } from '@/src/core/i18n';
+
+const dict = {
+  ru: {
+    import: 'Импорт',
+    importFolder: 'Папка с заметками…',
+    importFolderHint: 'Obsidian, .md, PDF — станет новым проектом',
+    importZip: 'Zip-архив…',
+    importZipHint: 'В том числе экспорт TakeNotes',
+    importFiles: 'Файлы .md / PDF…',
+    importFilesHint: 'В текущий проект',
+    projectName: 'Название нового проекта',
+    importing: 'Импорт: {done} из {total}',
+    done: 'Импортировано заметок: {n}',
+    doneHl: 'Хайлайтов: {n}',
+    scans: 'PDF без текста (скан): {n}. Оригинал сохранён.',
+    failed: 'Не удалось: {list}',
+    nothing: 'Не найдено ни .md, ни PDF',
+    tooMany: 'Слишком много файлов (больше {n}). Выберите папку поменьше.',
+    tooBig: 'Архив {name} слишком большой',
+    scanNotice: 'В этом PDF нет текстового слоя (скан или фото). Откройте оригинал кнопкой «Оригинал PDF».',
+    original: 'Оригинал PDF',
+    originalMissing: 'Оригинал PDF не найден',
+  },
+  en: {
+    import: 'Import',
+    importFolder: 'Folder of notes…',
+    importFolderHint: 'Obsidian, .md, PDF — becomes a new project',
+    importZip: 'Zip archive…',
+    importZipHint: 'TakeNotes exports too',
+    importFiles: '.md / PDF files…',
+    importFilesHint: 'Into the current project',
+    projectName: 'New project name',
+    importing: 'Importing: {done} of {total}',
+    done: 'Notes imported: {n}',
+    doneHl: 'Highlights: {n}',
+    scans: 'PDFs without text (scans): {n}. The original is kept.',
+    failed: 'Failed: {list}',
+    nothing: 'No .md or PDF files found',
+    tooMany: 'Too many files (over {n}). Pick a smaller folder.',
+    tooBig: 'Archive {name} is too big',
+    scanNotice: 'This PDF has no text layer (a scan or photo). Open the original with the "Original PDF" button.',
+    original: 'Original PDF',
+    originalMissing: 'Original PDF not found',
+  },
+} satisfies Dict<string>;
+
+export const it = translator<keyof (typeof dict)['en']>(dict);

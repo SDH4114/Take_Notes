@@ -12,6 +12,7 @@ import { ut } from '@/src/ui/strings';
 import { relativeDate } from './logic';
 import { lt } from './strings';
 import { colorHex } from '@/src/core/colors';
+import { isPageHighlightUrl } from '@/src/core/util';
 
 type HlMode = 'view' | 'edit' | 'split';
 interface HlDraft { note: string; body: string }
@@ -87,9 +88,11 @@ export function HighlightPane(p: {
     <section class="pane">
       <header class="pane-head">
         <div class="pane-meta">
-          <a class="meta-link truncate" href={h.url} target="_blank" rel="noopener noreferrer" title={h.source.title || h.url}>
-            <Icon name="external" size={13} />{domainOf(h.url)}
-          </a>
+          {isPageHighlightUrl(h.url) && (
+            <a class="meta-link truncate" href={h.url} target="_blank" rel="noopener noreferrer" title={h.source.title || h.url}>
+              <Icon name="external" size={13} />{domainOf(h.url)}
+            </a>
+          )}
           <span class="muted small" title={new Date(h.createdAt).toLocaleString()}>{relativeDate(h.createdAt)}</span>
           <span class="dot" style={{ background: colorHex(h.color) }} title={lt('color')} />
           <span class="grow" />
@@ -109,7 +112,7 @@ export function HighlightPane(p: {
               <Icon name="note" size={13} />{lt('openNote')}
             </button>
           )}
-          <button type="button" class="btn sm" onClick={() => p.onJump(h)}><Icon name="external" size={13} />{lt('goToSpot')}</button>
+          {isPageHighlightUrl(h.url) && <button type="button" class="btn sm" onClick={() => p.onJump(h)}><Icon name="external" size={13} />{lt('goToSpot')}</button>}
           {!p.note && <span class="muted small">{lt('noNoteForHl')}</span>}
         </div>
       </header>

@@ -6,6 +6,7 @@ import { IconButton } from '@/src/ui/components';
 import { Icon, Logo } from '@/src/ui/icons';
 import { ut } from '@/src/ui/strings';
 import type { BookSummary } from './Lists';
+import { ImportMenu } from './ImportMenu';
 import { lt } from './strings';
 
 export function Nav(p: {
@@ -13,7 +14,7 @@ export function Nav(p: {
   activeProject: string | null; booksActive: boolean; activeBook: string | undefined;
   query: string; onQuery: (q: string) => void; searchRef: Ref<HTMLInputElement>;
   onSelectProject: (id: string | null) => void; onRename: (pr: Project) => void; onDelete: (pr: Project) => void;
-  onNewProject: () => void; onSelectBook: (id: string) => void; onOpenBooks: () => void;
+  onNewProject: () => void; onImported: (projectId: string | null) => void; onSelectBook: (id: string) => void; onOpenBooks: () => void;
 }) {
   const count = (id: string | null) => p.counts.get(id) ?? 0;
   return (
@@ -44,6 +45,7 @@ export function Nav(p: {
             </>} />
         ))}
         <button type="button" class="nav-add" onClick={p.onNewProject}><Icon name="plus" size={14} />{ut('newProject')}</button>
+        <ImportMenu projectId={p.activeProject} onDone={p.onImported} />
 
         <div class="nav-section nav-section-link">
           <button type="button" class="section-btn" onClick={p.onOpenBooks}>{lt('books')}</button>

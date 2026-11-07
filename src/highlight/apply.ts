@@ -2,15 +2,18 @@
 // Clips and highlights are stored separately; they are joined by the normalized page URL.
 import type { Clip, Highlight } from '@/src/core/types';
 import { colorHex, hexToRgb } from '@/src/core/colors';
-import { normalizeUrl } from '@/src/core/util';
+import { clipHighlightUrl } from '@/src/core/util';
 import { resolveAnchor } from './anchor';
 
 const SKIP = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'CODE', 'PRE']);
 
-/** Highlights made on the clip's page (any project), oldest first. */
-export function highlightsForClip(clip: Pick<Clip, 'source'>, all: readonly Highlight[]): Highlight[] {
-  if (!clip.source.url) return [];
-  const url = normalizeUrl(clip.source.url);
+/**
+ * Highlights of a clip (any project), oldest first: made on its page, or — for a note without a source URL — made
+ * in that note (keyed by `noteHighlightUrl(clip.id)`, see clipHighlightUrl). Url-less notes never share highlights.
+ */
+export function highlightsForClip(clip: Pick<Clip, 'source'> & { id?: string }, all: readonly Highlight[]): Highlight[] {
+  if (!clip.source.url && !clip.id) return [];
+  const url = clipHighlightUrl({ id: clip.id ?? '', source: clip.source });
   return all.filter((h) => h.url === url).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 

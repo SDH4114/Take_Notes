@@ -77,4 +77,15 @@ describe('openHighlight', () => {
     expect(s.tabs.query).not.toHaveBeenCalled();
     expect(s.tabs.create).not.toHaveBeenCalled();
   });
+
+  it('a highlight of an own note (no page) opens that note in the Library', async () => {
+    const s = setup({ highlight: { id: 'h2', url: 'takenotes-note:clip-9', projectId: 'p1' } as Highlight });
+    await openHighlight('h2', s.deps);
+    expect(s.tabs.create).toHaveBeenCalledTimes(1);
+    const url = new URL((s.tabs.create as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string);
+    expect(url.pathname).toBe('/library.html');
+    expect(Object.fromEntries(url.searchParams)).toEqual({ project: 'p1', clip: 'clip-9' });
+    expect(s.tabs.query).not.toHaveBeenCalled();
+    expect(s.sendToTab).not.toHaveBeenCalled();
+  });
 });

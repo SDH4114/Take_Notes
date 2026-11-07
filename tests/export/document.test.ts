@@ -203,3 +203,18 @@ describe('highlights in exports', () => {
     expect(files['board.md']).toBe('---\nkanban-plugin: basic\n---\n\n# Board: P\n\n## To read\n\n- [ ] [[Same|Same]]\n\n## Done\n\n- [ ] [[Same 2|Same]]\n- [ ] [[Ch 1/Deep|Deep]]\n');
   });
 });
+
+describe('own notes (no source URL)', () => {
+  const own = (over: Partial<Clip> = {}) => clip({ source: src({ url: '', title: '' }), markdown: 'Body', ...over });
+  it('no empty source line in a note', () => {
+    const md = clipToMarkdown(own(), noFm, 'ru');
+    expect(md).toBe('# Rust: "ownership"\n\nBody\n');
+  });
+  it('no bibliography entry for own notes', () => {
+    const project: Project = { id: 'p1', name: 'P', citationStyle: 'gost', createdAt: '', updatedAt: '' };
+    const md = projectToMarkdown(project, [own(), clip({ id: 'c2', order: 1 })], noFm, 'en');
+    expect(md).not.toContain('Source: []');
+    expect(md.match(/^\d+\. /gm)?.length ?? 0).toBe(1);
+    expect(projectToMarkdown(project, [own()], noFm, 'en')).not.toContain('References');
+  });
+});

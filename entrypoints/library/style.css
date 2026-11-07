@@ -41,6 +41,8 @@ button { font-family: inherit; }
 .nav-row:hover .nav-count, .nav-row:focus-within .nav-count { display: none; }
 .nav-add { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font: 13px var(--font); cursor: pointer; }
 .nav-add:hover { background: var(--bg-hover); color: var(--fg); }
+.nav-add:disabled { cursor: default; opacity: .7; }
+.nav-scroll > .menu-anchor { display: flex; }
 .nav-foot { padding-top: 8px; margin-top: 4px; border-top: 1px solid var(--border); }
 
 /* ---------- middle list */

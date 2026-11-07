@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { boards } from '@/src/core/storage';
 import type { BoardColumn, Clip, Highlight } from '@/src/core/types';
-import { newId, normalizeUrl } from '@/src/core/util';
+import { clipHighlightUrl, newId } from '@/src/core/util';
 import { domainOf, errText, IconButton, useUi } from '@/src/ui/components';
 import { Icon } from '@/src/ui/icons';
 import { ut } from '@/src/ui/strings';
@@ -145,7 +145,7 @@ export function BoardView(p: {
               {cards.map((c) => {
                 const tags = clipTags(c);
                 const done = isDone(c, columns);
-                const hl = c.source.url ? (hlCount.get(normalizeUrl(c.source.url)) ?? 0) : 0;
+                const hl = hlCount.get(clipHighlightUrl(c)) ?? 0;
                 return (
                   <article key={c.id} draggable class={`card board-card ${done ? 'done' : ''} ${c.id === dragId ? 'dragging' : ''} ${drop?.before === c.id ? 'drop-before' : ''}`}
                     tabIndex={0} onClick={() => p.onOpen(c)} onKeyDown={(e) => { if (e.key === 'Enter') p.onOpen(c); }}

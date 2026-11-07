@@ -46,10 +46,14 @@ export const projects = {
   async put(p: Project) { await (await db()).put('projects', p); return p; },
   async delete(id: string) {
     const d = await db();
-    const tx = d.transaction(['projects', 'clips', 'highlights'], 'readwrite');
+    const tx = d.transaction(['projects', 'clips', 'highlights', 'assets'], 'readwrite');
     await tx.objectStore('projects').delete(id);
     const idx = tx.objectStore('clips').index('byProject');
-    for (let c = await idx.openCursor(id); c; c = await c.continue()) await c.delete();
+    for (let c = await idx.openCursor(id); c; c = await c.continue()) {
+      // Files owned by the note (imported PDF originals); web images are shared by URL and only cached.
+      for (const a of c.value.assetIds ?? []) await tx.objectStore('assets').delete(a);
+      await c.delete();
+    }
     // Highlights live on their pages: keep them, but move them to Inbox so they stay listable/exportable.
     const hIdx = tx.objectStore('highlights').index('byProject');
     for (let c = await hIdx.openCursor(id); c; c = await c.continue()) {
@@ -67,7 +71,15 @@ export const clips = {
   },
   async get(id: string) { const v = await (await db()).get('clips', id); return v && untag(v); },
   async put(c: Clip) { await (await db()).put('clips', tag(c) as unknown as Clip); return c; },
-  async delete(id: string) { await (await db()).delete('clips', id); },
+  /** Also deletes the files the note owns (Clip.assetIds: imported PDF originals). */
+  async delete(id: string) {
+    const d = await db();
+    const tx = d.transaction(['clips', 'assets'], 'readwrite');
+    const c = await tx.objectStore('clips').get(id);
+    for (const a of c?.assetIds ?? []) await tx.objectStore('assets').delete(a);
+    await tx.objectStore('clips').delete(id);
+    await tx.done;
+  },
   async nextOrder(projectId: string | null): Promise<number> {
     const list = await clips.listByProject(projectId);
     return list.length ? Math.max(...list.map((c) => c.order)) + 1 : 0;

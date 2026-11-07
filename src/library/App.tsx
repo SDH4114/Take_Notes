@@ -18,7 +18,7 @@ import { BoardView } from './BoardView';
 import { resolveWikilink } from './graph';
 import { Nav } from './Nav';
 import { highlightsForClip } from '@/src/highlight/apply';
-import { normalizeUrl } from '@/src/core/util';
+import { clipHighlightUrl } from '@/src/core/util';
 import { BookReader, HighlightPane } from './Panes';
 import { lt } from './strings';
 
@@ -195,13 +195,12 @@ export function App() {
 
   const jump = (h: Highlight) => run(() => send('highlight/open', { id: h.id }));
 
-  // Saved note of a highlight's page: same project first, then any other.
+  // Saved note of a highlight's page (or the own note it was made in): same project first, then any other.
   const pageClips = useMemo(() => {
     const m = new Map<string, Clip[]>();
     for (const list of clipMap.values()) {
       for (const c of list) {
-        if (!c.source.url) continue;
-        const k = normalizeUrl(c.source.url);
+        const k = clipHighlightUrl(c);
         m.set(k, [...(m.get(k) ?? []), c]);
       }
     }
@@ -374,6 +373,7 @@ export function App() {
       <Nav projects={projects} counts={clipCounts} books={books} activeProject={nav.project} booksActive={nav.view === 'books'}
         activeBook={nav.view === 'books' ? nav.clip : undefined} query={query} onQuery={setQuery} searchRef={searchRef}
         onSelectProject={selectProject} onRename={renameProject} onDelete={deleteProject} onNewProject={newProject}
+        onImported={(id) => { setQuery(''); go({ project: id, view: 'clips', clip: undefined }); void load(); }}
         onSelectBook={(id) => go({ view: 'books', clip: id })} onOpenBooks={() => setView('books')} />
 
       <section class="list-col">

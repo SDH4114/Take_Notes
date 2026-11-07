@@ -5,7 +5,7 @@ import { MATH_ATTR, MATH_TEX_ATTR } from '@/src/markdown';
 import { uiLang, type Lang } from '@/src/core/i18n';
 import type { BoardColumn, Book, Clip, Highlight, Project, SourceMeta } from '@/src/core/types';
 import { renderMarkdown } from '@/src/ui/markdown';
-import { normalizeUrl } from '@/src/core/util';
+import { isPageHighlightUrl, normalizeUrl } from '@/src/core/util';
 import { exportT } from './strings';
 import { highlightsForClip, markHighlightsInHtml } from '@/src/highlight/apply';
 
@@ -88,11 +88,12 @@ export function prepareHtml(html: string, shift: number): string {
 
 // ---------- document models
 
-const srcRef = (s: SourceMeta) => ({ title: s.title || s.url, url: s.url });
+/** Own notes (no URL) have no source line. */
+const srcRef = (s: SourceMeta) => (s.url ? { title: s.title || s.url, url: s.url } : undefined);
 
 function biblio(sources: SourceMeta[], style: Project['citationStyle']): string[] {
   const seen = new Set<string>();
-  const unique = sources.filter((s) => !seen.has(normalizeUrl(s.url)) && !!seen.add(normalizeUrl(s.url)));
+  const unique = sources.filter((s) => !!s.url && !seen.has(normalizeUrl(s.url)) && !!seen.add(normalizeUrl(s.url)));
   return unique.length ? formatBibliography(unique, style) : [];
 }
 
@@ -193,7 +194,7 @@ export function highlightsPrintDoc(items: Highlight[], name: string, lang: Lang 
   const byUrl = new Map<string, Highlight[]>();
   for (const h of items) byUrl.set(h.url, [...(byUrl.get(h.url) ?? []), h]);
   const sections: PrintSection[] = [...byUrl.values()].map((list) => ({
-    title: list[0]!.source.title || list[0]!.url,
+    title: list[0]!.source.title || (isPageHighlightUrl(list[0]!.url) ? list[0]!.url : exportT(lang)('highlights')),
     level: 1,
     source: srcRef(list[0]!.source),
     html: quotesHtml(list),

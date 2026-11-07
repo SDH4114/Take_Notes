@@ -9,6 +9,7 @@ import { clipIcon, moveId, relativeDate, snippet } from './logic';
 import { lt } from './strings';
 import { folderName, groupByFolder } from './folders';
 import { colorHex } from '@/src/core/colors';
+import { isPageHighlightUrl } from '@/src/core/util';
 
 /** Focusable list: Up/Down move the selection, Delete asks to delete it. */
 export function ListBox(p: {
@@ -200,7 +201,7 @@ export function HighlightList(p: {
           <div class="item-main">
             <div class="item-text">{h.text}</div>
             {h.note && <div class="item-note italic">{h.note}</div>}
-            <div class="item-meta truncate">{domainOf(h.url)} <span aria-hidden="true">·</span> {relativeDate(h.createdAt)}</div>
+            <div class="item-meta truncate">{isPageHighlightUrl(h.url) ? domainOf(h.url) : h.source.title} <span aria-hidden="true">·</span> {relativeDate(h.createdAt)}</div>
             <div class="row hl-links">
               {(() => {
                 const note = p.noteOf(h);
@@ -210,9 +211,11 @@ export function HighlightList(p: {
                   </button>
                 );
               })()}
-              <button type="button" class="btn sm ghost jump" onClick={(e) => { e.stopPropagation(); p.onJump(h); }}>
-                <Icon name="external" size={13} />{lt('goToSpot')}
-              </button>
+              {isPageHighlightUrl(h.url) && (
+                <button type="button" class="btn sm ghost jump" onClick={(e) => { e.stopPropagation(); p.onJump(h); }}>
+                  <Icon name="external" size={13} />{lt('goToSpot')}
+                </button>
+              )}
             </div>
           </div>
           <div class="item-actions" onClick={(e) => e.stopPropagation()}>

@@ -7,7 +7,8 @@ import { initTheme } from '@/src/ui/theme';
 import './popup.css';
 import { send } from '@/src/core/messages';
 import { settings } from '@/src/core/storage';
-import type { ExportFormat, Project } from '@/src/core/types';
+import type { ExportFormat, Project, TrackInfo } from '@/src/core/types';
+import { preferLanguage } from '@/src/youtube/transcript';
 import { t } from '@/src/extract/strings';
 import { Icon, Logo } from '@/src/ui/icons';
 import { IconButton, Menu, ProjectPicker, UiProvider, errText, openLibrary, runExport, type MenuItem } from '@/src/ui/components';
@@ -19,6 +20,9 @@ import { t as st } from '@/src/sites/strings';
 
 initTheme();
 
+/** Last caption language picked in the YouTube picker (extension page localStorage, like the theme). */
+const YT_LANG_KEY = 'tn.ytLang';
+
 interface Status { kind: 'ok' | 'error' | 'info'; text: string; clipId?: string }
 
 function App() {
@@ -28,6 +32,8 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Status | null>(null);
   const [access, setAccess] = useState<SiteAccess>(DEFAULT_SITE_ACCESS);
+  /** Caption tracks to choose from (YouTube language picker); null = picker hidden. */
+  const [tracks, setTracks] = useState<TrackInfo[] | null>(null);
 
   const fail = (e: unknown) => setStatus({ kind: 'error', text: t('error', { message: errText(e) }) });
 
@@ -102,12 +108,28 @@ function App() {
         : { kind: 'error', text: t('noSelection') };
     });
 
+  const transcript = async (track?: TrackInfo): Promise<Status> => {
+    const clip = await send('youtube/saveTranscript', { tabId: tab.id, projectId, lang: track?.languageCode, kind: track?.kind });
+    return clip
+      ? { kind: 'ok', text: t('saved', { title: clip.title }), clipId: clip.id }
+      : { kind: 'error', text: t('noTranscript') };
+  };
+
+  const pickTrack = (track: TrackInfo) => {
+    setTracks(null);
+    localStorage.setItem(YT_LANG_KEY, track.languageCode);
+    void run(() => transcript(track));
+  };
+
+  // One track (or none listed: the transcript panel may still work) → save at once; several → ask which language.
   const youtube = () =>
     run(async () => {
-      const clip = await send('youtube/saveTranscript', { tabId: tab.id, projectId });
-      return clip
-        ? { kind: 'ok', text: t('saved', { title: clip.title }), clipId: clip.id }
-        : { kind: 'error', text: t('noTranscript') };
+      const list = await send('youtube/tracks', { tabId: tab.id });
+      if (list.length > 1) {
+        setTracks(preferLanguage(list, localStorage.getItem(YT_LANG_KEY)));
+        return null;
+      }
+      return transcript(list[0]);
     });
 
   // Reuse the clip of this page if the project already has one; saving again would create a duplicate each time.
@@ -189,9 +211,23 @@ function App() {
             <kbd class="kbd">Alt+Shift+S</kbd>
           </button>
           {isYoutubeWatchUrl(tab.url) && (
-            <button type="button" class="btn block" disabled={busy || inactive} onClick={youtube}>
+            <button type="button" class="btn block" disabled={busy || inactive || tracks != null} onClick={youtube}>
               <Icon name="video" size={14} />{t('youtube')}
             </button>
+          )}
+          {tracks && (
+            <div class="pop-tracks" role="group" aria-label={t('chooseLang')}>
+              <span class="label">{t('chooseLang')}</span>
+              <div class="pop-tracks-list">
+                {tracks.map((tr) => (
+                  <button type="button" key={`${tr.languageCode}|${tr.kind ?? ''}`} class="btn sm block between"
+                    disabled={busy} onClick={() => pickTrack(tr)}>
+                    <span>{tr.label}</span><span class="muted small">{tr.languageCode}</span>
+                  </button>
+                ))}
+              </div>
+              <button type="button" class="btn ghost sm" onClick={() => setTracks(null)}>{ut('cancel')}</button>
+            </div>
           )}
         </div>
 
