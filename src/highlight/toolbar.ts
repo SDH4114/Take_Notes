@@ -4,6 +4,7 @@ import type { HighlightColor } from '@/src/core/types';
 import { colorHex } from '@/src/core/colors';
 import { t } from './strings';
 import { isTrustedEvent, shadowMode } from '@/src/core/dom-guard';
+import { setHtml } from '@/src/core/html';
 
 const HOST_ID = 'tn-toolbar-host';
 const SHOW_DELAY_MS = 60;
@@ -105,7 +106,7 @@ export function createSelectionToolbar(
       more.className = 'more';
       more.title = t('moreColors');
       more.setAttribute('aria-label', t('moreColors'));
-      more.innerHTML = CHEVRON; // static constant
+      setHtml(more, CHEVRON); // static constant
       more.addEventListener('mousedown', (e) => e.preventDefault());
       more.addEventListener('click', (e) => {
         if (!isTrustedEvent(e)) return;

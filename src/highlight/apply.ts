@@ -3,6 +3,7 @@
 import type { Clip, Highlight } from '@/src/core/types';
 import { colorHex, hexToRgb } from '@/src/core/colors';
 import { clipHighlightUrl } from '@/src/core/util';
+import { parseHtml } from '@/src/core/html';
 import { resolveAnchor } from './anchor';
 
 const SKIP = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'CODE', 'PRE']);
@@ -54,8 +55,7 @@ function wrap(range: Range, h: Highlight): boolean {
 /** Wrap each highlight's text in <mark>. Input must already be sanitized; returns HTML and the ids not found. */
 export function markHighlightsInHtml(html: string, list: readonly Highlight[]): { html: string; missing: string[] } {
   if (!list.length) return { html, missing: [] };
-  const tpl = document.createElement('template');
-  tpl.innerHTML = html;
+  const tpl = parseHtml(html);
   const missing: string[] = [];
   for (const h of list) {
     let range: Range | null = null;

@@ -5,6 +5,7 @@ import { loadPrintDoc, type PrintKind } from '@/src/export/data';
 import { PRINT_READY } from '@/src/export/pdf';
 import { buildPrintHtml, PRINT_CSS } from '@/src/export/printdoc';
 import { exportT } from '@/src/export/strings';
+import { setHtml } from '@/src/core/html';
 
 const KINDS: PrintKind[] = ['clip', 'project', 'book', 'highlights', 'board'];
 const IMAGE_TIMEOUT_MS = 20_000;
@@ -43,7 +44,7 @@ async function main(): Promise<void> {
   style.textContent = doc.landscape ? `${PRINT_CSS}\n@page { size: A4 landscape; margin: 12mm; }` : PRINT_CSS;
   document.head.append(style);
   // buildPrintHtml: every section body is sanitized with DOMPurify, all other text is escaped.
-  document.getElementById('app')!.innerHTML = buildPrintHtml(doc);
+  setHtml(document.getElementById('app')!, buildPrintHtml(doc));
   await waitForImages();
   signal(true);
   if (params.get('autoprint') === '1') setTimeout(() => window.print(), 300);

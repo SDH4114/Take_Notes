@@ -6,6 +6,7 @@ import { uiLang, type Lang } from '@/src/core/i18n';
 import type { BoardColumn, Book, Clip, Highlight, Project, SourceMeta } from '@/src/core/types';
 import { renderMarkdown } from '@/src/ui/markdown';
 import { isPageHighlightUrl, normalizeUrl } from '@/src/core/util';
+import { parseHtml } from '@/src/core/html';
 import { exportT } from './strings';
 import { highlightsForClip, markHighlightsInHtml } from '@/src/highlight/apply';
 
@@ -65,13 +66,11 @@ function mathToText(root: ParentNode): void {
 
 /** Sanitize page HTML, shift headings down by `shift`, render math as text, load images eagerly. */
 export function prepareHtml(html: string, shift: number): string {
-  const pre = document.createElement('template');
-  pre.innerHTML = html;
+  const pre = parseHtml(html);
   mathToText(pre.content);
   const clean = DOMPurify.sanitize(pre.innerHTML);
 
-  const tpl = document.createElement('template');
-  tpl.innerHTML = clean;
+  const tpl = parseHtml(clean);
   for (const h of Array.from(tpl.content.querySelectorAll('h1,h2,h3,h4,h5,h6'))) {
     const level = Math.min(6, Number(h.tagName[1]) + shift);
     if (level === Number(h.tagName[1])) continue;

@@ -1,6 +1,7 @@
 // PDF files generated in JS (pdfmake + html-to-pdfmake) — used where Firefox' saveAsPDF can't help: it always opens a
 // save dialog and can't put files into a zip. Input is a PrintDoc (already sanitized HTML from printdoc.ts).
 import { isHttpUrl, readBodyCapped } from '@/src/core/util';
+import { parseHtml } from '@/src/core/html';
 import { exportT } from './strings';
 import type { PrintDoc } from './printdoc';
 
@@ -27,8 +28,7 @@ const toBase64 = (bytes: Uint8Array): string => {
  * div, inline <code> → shaded span, images → data: URLs (PNG/JPEG only; others become their alt text).
  */
 export async function prepareForPdf(html: string, fetchFn: typeof fetch = fetch): Promise<string> {
-  const tpl = document.createElement('template');
-  tpl.innerHTML = html; // already sanitized by printdoc (DOMPurify); a template is inert
+  const tpl = parseHtml(html); // already sanitized by printdoc (DOMPurify); inert
   const root = tpl.content;
   const swap = (el: Element, tag: string, style: string) => {
     const n = document.createElement(tag);

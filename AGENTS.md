@@ -55,6 +55,7 @@ Content script extracts/anchors on the page and answers `ContentMessages`. Backg
 - Imports with `@/` alias (project root).
 - Dates as ISO strings; IDs from `newId()`; URLs as identity via `normalizeUrl()`.
 - Any HTML coming from web pages is sanitized with DOMPurify before rendering in extension pages.
+- Never assign `innerHTML` / `outerHTML` / `insertAdjacentHTML` / `setHTMLUnsafe` (AMO linter UNSAFE_VAR_ASSIGNMENT): parse with `parseHtml()` (inert `<template>`, same parsing as `template.innerHTML`) or `setHtml(el, html)` from `src/core/html.ts`. Reading `.innerHTML` is fine.
 - UI injected into web pages: `attachShadow({ mode: shadowMode() })` and `if (!isTrustedEvent(e)) return;` in every handler (`src/core/dom-guard.ts`).
 - New background message that content scripts must send → add it to `allowFromWebPages` in `entrypoints/background.ts` and validate against `sender`.
 - Context menus are created only in `entrypoints/background.ts` (`removeAll` then each module's `create*Menus()`).

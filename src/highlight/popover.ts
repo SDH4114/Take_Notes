@@ -3,6 +3,7 @@ import type { HighlightColor } from '@/src/core/types';
 import { colorHex } from '@/src/core/colors';
 import { t } from './strings';
 import { isTrustedEvent, shadowMode } from '@/src/core/dom-guard';
+import { setHtml } from '@/src/core/html';
 
 const HOST_ID = 'tn-popover-host';
 const NOTE_DEBOUNCE_MS = 500;
@@ -104,14 +105,14 @@ export function openPopover(o: PopoverOptions): () => void {
   actions.className = 'actions';
   const copy = document.createElement('button');
   copy.className = 'act copy';
-  copy.innerHTML = ICON_COPY;
+  setHtml(copy, ICON_COPY);
   copy.title = t('copy');
   copy.setAttribute('aria-label', t('copy'));
   copy.addEventListener('click', (e) => {
     if (!isTrustedEvent(e)) return;
     navigator.clipboard.writeText(o.text).then(
       () => {
-        copy.innerHTML = ICON_CHECK;
+        setHtml(copy, ICON_CHECK);
         copy.title = t('copied');
         copy.setAttribute('aria-label', t('copied'));
       },
@@ -120,7 +121,7 @@ export function openPopover(o: PopoverOptions): () => void {
   });
   const del = document.createElement('button');
   del.className = 'act del';
-  del.innerHTML = ICON_TRASH;
+  setHtml(del, ICON_TRASH);
   del.title = t('delete');
   del.setAttribute('aria-label', t('delete'));
   del.addEventListener('click', (e) => {
