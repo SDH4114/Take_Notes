@@ -13,7 +13,7 @@ export default defineConfig({
     return {
       name: '__MSG_extName__',
       description: '__MSG_extDescription__',
-      default_locale: 'ru',
+      default_locale: 'en',
       homepage_url: 'https://amikolabs.com',
       // Chrome: the service worker has no DOM → offscreen document (src/core/dom.ts). `sidePanel` is added by WXT.
       permissions: ['storage', 'contextMenus', 'downloads', 'tabs', 'scripting', ...(firefox ? [] : ['offscreen'])],
