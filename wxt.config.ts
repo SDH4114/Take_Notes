@@ -1,11 +1,13 @@
 import { defineConfig } from 'wxt';
 import preact from '@preact/preset-vite';
+import { vendorLintPatches } from './build/vendor-lint-patches';
 
 // One codebase, two targets: `wxt -b firefox` (default here) and `wxt -b chrome`.
 export default defineConfig({
   srcDir: '.',
   manifestVersion: 3,
-  vite: () => ({ plugins: [preact()] }),
+  // vendorLintPatches: removes AMO-linter-flagged code from third-party libraries (see the file).
+  vite: () => ({ plugins: [preact(), vendorLintPatches()] }),
   manifest: ({ browser }) => {
     const firefox = browser === 'firefox';
     return {
@@ -32,6 +34,8 @@ export default defineConfig({
               // Everything stays local; nothing is collected or transmitted.
               data_collection_permissions: { required: ['none'] },
             },
+            // Firefox for Android supports data_collection_permissions only from 142.
+            gecko_android: { strict_min_version: '142.0' },
           },
         }
         // sidePanel.open() needs 116; runtime.getContexts (offscreen check) 116.
