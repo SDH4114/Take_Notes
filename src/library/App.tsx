@@ -1,6 +1,7 @@
 // Library workspace: nav | list | detail. All data comes through messages; broadcasts refresh it live.
 import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { browser } from 'wxt/browser';
 import { onBroadcast, send } from '@/src/core/messages';
 import { books as bookStore, folders as folderStore } from '@/src/core/storage';
 import { folderList, folderName, renameFolder as renameInList } from './folders';
@@ -84,6 +85,13 @@ export function App() {
     const off = onBroadcast('data/changed', () => { clearTimeout(timer); timer = setTimeout(() => void load(), 120); });
     return () => { off(); clearTimeout(timer); };
   }, [load]);
+
+  // ---- openLibrary() from the popup/sidebar while this tab is open: navigate without a reload
+  useEffect(() => onBroadcast('library/open', ({ tabId, search }) => {
+    void browser.tabs.getCurrent().then((tab) => {
+      if (tab?.id === tabId) setNav(parseParams(search));
+    });
+  }), []);
 
   // ---- URL follows the state, so a reload keeps the place
   useEffect(() => {

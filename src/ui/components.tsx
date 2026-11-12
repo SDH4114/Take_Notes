@@ -2,7 +2,7 @@
 import { createContext, type ComponentChildren } from 'preact';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { browser } from 'wxt/browser';
-import { send } from '@/src/core/messages';
+import { broadcast, send } from '@/src/core/messages';
 import type { ExportFormat, Project } from '@/src/core/types';
 import { Icon, type IconName } from './icons';
 import { ut } from './strings';
@@ -306,7 +306,12 @@ export async function openLibrary(target: LibraryTarget = {}): Promise<void> {
   const url = q.toString() ? `${base}?${q}` : base;
   const [existing] = await browser.tabs.query({ url: `${base}*` });
   if (existing?.id != null) {
-    await browser.tabs.update(existing.id, { active: true, url });
+    // A live Library tab navigates itself; a discarded one has no page to receive the message, so it gets the URL.
+    if (existing.discarded) await browser.tabs.update(existing.id, { active: true, url });
+    else {
+      broadcast('library/open', { tabId: existing.id, search: q.toString() });
+      await browser.tabs.update(existing.id, { active: true });
+    }
     if (existing.windowId != null) await browser.windows.update(existing.windowId, { focused: true });
   } else {
     await browser.tabs.create({ url });

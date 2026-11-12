@@ -10,6 +10,7 @@ const HOST_ID = 'tn-toolbar-host';
 const SHOW_DELAY_MS = 60;
 const GAP_PX = 8;
 const EDGE_PX = 6;
+const ERROR_MS = 3500;
 
 export interface Palette { colors: string[]; defaultColor: string }
 
@@ -32,6 +33,8 @@ button{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-
 .rest{display:none;align-items:center;gap:2px;padding-left:2px;margin-left:2px;border-left:1px solid rgba(127,127,127,.25)}
 .bar.open .rest{display:flex;animation:in .12s ease-out}
 @media (prefers-color-scheme:dark){.more{color:#a1a1aa}}
+.msg{padding:4px 10px;color:#b91c1c;max-width:320px;line-height:1.3}
+@media (prefers-color-scheme:dark){.msg{color:#fca5a5}}
 @media (prefers-reduced-motion:reduce){.bar,.bar.open .rest{animation:none}.more svg,.sw i{transition:none}}
 `;
 
@@ -63,7 +66,7 @@ export function centeredPosition(
 export function createSelectionToolbar(
   onPick: (color: HighlightColor) => void,
   loadPalette: () => Promise<Palette> = async () => ({ colors: ['#facc15'], defaultColor: '#facc15' }),
-): { destroy(): void } {
+): { destroy(): void; showError(text: string): void } {
   const host = document.createElement('div');
   host.id = HOST_ID;
   host.style.display = 'none';
@@ -128,7 +131,11 @@ export function createSelectionToolbar(
     bar.style.top = `${pos.top}px`;
   }
 
+  let errorTimer: ReturnType<typeof setTimeout> | undefined;
+  let showingError = false;
   function hide(): void {
+    clearTimeout(errorTimer);
+    showingError = false;
     host.style.display = 'none';
     bar.classList.remove('open');
     host.remove();
@@ -136,11 +143,16 @@ export function createSelectionToolbar(
 
   function update(): void {
     const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !sel.toString().trim()) return hide();
+    const empty = !sel || sel.isCollapsed || sel.rangeCount === 0 || !sel.toString().trim();
+    // The error stays for its timeout; only a new selection replaces it.
+    if (empty && showingError) return;
+    if (!sel || empty) return hide();
     const active = document.activeElement;
     if (isEditable(sel.anchorNode) || isEditable(sel.focusNode) || isEditable(active)) return hide();
     if (host.contains(sel.anchorNode)) return hide();
     box = selectionBox(sel.getRangeAt(0));
+    showingError = false;
+    clearTimeout(errorTimer);
     build();
     bar.classList.remove('open');
     if (!host.isConnected) document.body.appendChild(host);
@@ -171,9 +183,28 @@ export function createSelectionToolbar(
   // Host is attached lazily in update(): don't advertise the extension on every page.
   loadPalette().then((p) => { palette = p; }).catch(() => {});
 
+  /** Short message in place of the swatches at the last selection (a failed save must not just vanish). */
+  function showError(text: string): void {
+    const msg = document.createElement('span');
+    msg.className = 'msg';
+    msg.setAttribute('role', 'alert');
+    msg.textContent = text;
+    bar.classList.remove('open');
+    bar.replaceChildren(msg);
+    paletteKey = ''; // next update() rebuilds the swatches
+    if (!host.isConnected) document.body.appendChild(host);
+    host.style.display = '';
+    place();
+    showingError = true;
+    clearTimeout(errorTimer);
+    errorTimer = setTimeout(hide, ERROR_MS);
+  }
+
   return {
+    showError,
     destroy() {
       clearTimeout(timer);
+      clearTimeout(errorTimer);
       document.removeEventListener('mouseup', schedule);
       document.removeEventListener('keyup', schedule);
       document.removeEventListener('selectionchange', onSelChange);

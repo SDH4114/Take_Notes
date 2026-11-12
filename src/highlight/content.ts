@@ -9,6 +9,7 @@ import {
   clearHighlights, flashHighlight, installMarkClicks, marksOf, recolorHighlight, removeHighlight, renderHighlight, wrapRange,
 } from './render';
 import { createSelectionToolbar, isEditable } from './toolbar';
+import { t } from './strings';
 import { watchSiteActive } from '@/src/sites/content';
 
 const RETRY_DELAY_MS = 2000;
@@ -36,6 +37,8 @@ export function createHighlightController(deps: ControllerDeps = {}) {
   const items = new Map<string, Highlight>();
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let stopFns: Array<() => void> = [];
+  /** Highlights made on this page while a refresh() is loading: its result predates them, they must survive it. */
+  let madeDuringRefresh: Map<string, Highlight> | null = null;
 
   /** Adopt the stored result of a field update (brings in notes edited in the Library meanwhile). */
   async function patch(req: Promise<Highlight>): Promise<void> {
@@ -70,11 +73,14 @@ export function createHighlightController(deps: ControllerDeps = {}) {
     };
     if (wrapRange(range, h.id, color).length === 0) return null;
     sel.removeAllRanges();
+    const during = madeDuringRefresh;
+    during?.set(h.id, h);
     try {
       const saved = await send('highlight/save', h);
       items.set(saved.id, saved);
       return saved;
     } catch (e) {
+      during?.delete(h.id);
       removeHighlight(h.id);
       throw e;
     }
@@ -88,10 +94,22 @@ export function createHighlightController(deps: ControllerDeps = {}) {
   async function refresh(): Promise<void> {
     clearTimeout(retryTimer);
     const gen = ++generation;
-    const list = await send('highlight/listForUrl', { url: pageUrl() });
+    const made = (madeDuringRefresh = new Map());
+    let list: Highlight[];
+    try {
+      list = await send('highlight/listForUrl', { url: pageUrl() });
+    } finally {
+      if (madeDuringRefresh === made) madeDuringRefresh = null;
+    }
     if (gen !== generation) return; // switched off (or refreshed again) while loading
-    clearHighlights();
+    const known = new Set(list.map((h) => h.id));
+    // Still on the page (not deleted, save not failed) but not in the loaded list: keep as is.
+    const keep = [...made.values()]
+      .filter((h) => !known.has(h.id) && marksOf(h.id).length > 0)
+      .map((h) => items.get(h.id) ?? h); // the saved copy, if the save already returned
+    clearHighlights(keep.map((h) => h.id));
     items.clear();
+    for (const h of keep) items.set(h.id, h);
     for (const h of list) items.set(h.id, h);
     const missed = renderAll(list);
     if (missed.length) {
@@ -149,6 +167,7 @@ export function createHighlightController(deps: ControllerDeps = {}) {
         void patch(send('highlight/setNote', { id, note: note.trim() || undefined }));
       },
       onDelete: () => {
+        madeDuringRefresh?.delete(id);
         removeHighlight(id);
         items.delete(id);
         send('highlight/delete', { id }).catch((e) => console.warn('[take-notes] deleting highlight failed', e));
@@ -159,7 +178,10 @@ export function createHighlightController(deps: ControllerDeps = {}) {
   function start(): void {
     if (stopFns.length) return;
     const toolbar = createSelectionToolbar((color) => {
-      highlightSelection(color).catch((e) => console.warn('[take-notes] highlight failed', e));
+      highlightSelection(color).catch((e) => {
+        console.warn('[take-notes] highlight failed', e);
+        toolbar.showError(t('saveFailed'));
+      });
     }, loadPalette);
     stopFns = [installMarkClicks(onMarkClick), () => toolbar.destroy()];
   }

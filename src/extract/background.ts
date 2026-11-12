@@ -1,7 +1,7 @@
 // Background part of the extract module. Owner: agent A.
 import { browser } from 'wxt/browser';
 import { broadcast, resolveTabId, sendToTab, type BackgroundMessages, type Handlers } from '@/src/core/messages';
-import { clips, settings } from '@/src/core/storage';
+import { activeProjectId, clips } from '@/src/core/storage';
 import type { Clip, ClipKind } from '@/src/core/types';
 import { newId, nowIso } from '@/src/core/util';
 import { t } from './strings';
@@ -21,7 +21,7 @@ export async function saveClip(kind: 'page' | 'selection', payload: SavePayload)
   if (!result) return null;
 
   // `payload.projectId` may legitimately be null (Inbox), so only undefined falls back to the default.
-  const projectId = payload.projectId !== undefined ? payload.projectId : (await settings.get()).defaultProjectId;
+  const projectId = payload.projectId !== undefined ? payload.projectId : await activeProjectId();
   const now = nowIso();
   const clip: Clip = {
     id: newId(),

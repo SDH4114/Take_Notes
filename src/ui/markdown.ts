@@ -63,7 +63,19 @@ md.use({ extensions: [blockMathExt, inlineMathExt, wikilinkExt, markExt] });
 /** Render markdown to sanitized HTML. Links open in a new tab. */
 export function renderMarkdown(source: string): string {
   const raw = md.parse(source, { async: false }) as string;
-  const clean = DOMPurify.sanitize(raw, { FORBID_TAGS: ['style', 'iframe', 'form', 'input', 'button'], FORBID_ATTR: ['style'] });
-  // External links open in a new tab; wikilinks (href="#") are handled by the page.
-  return clean.replace(/<a href=(?!"#")/g, '<a target="_blank" rel="noopener noreferrer" href=');
+  // External links open in a new tab (any attribute order, raw HTML included); wikilinks (href="#") are handled by the page.
+  DOMPurify.addHook('afterSanitizeAttributes', newTabLinks);
+  try {
+    return DOMPurify.sanitize(raw, { FORBID_TAGS: ['style', 'iframe', 'form', 'input', 'button'], FORBID_ATTR: ['style'] });
+  } finally {
+    DOMPurify.removeHook('afterSanitizeAttributes', newTabLinks);
+  }
+}
+
+function newTabLinks(node: Element): void {
+  if (node.nodeName !== 'A') return;
+  const href = node.getAttribute('href');
+  if (!href || href.startsWith('#')) return;
+  node.setAttribute('target', '_blank');
+  node.setAttribute('rel', 'noopener noreferrer');
 }

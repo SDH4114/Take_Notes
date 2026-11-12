@@ -1,7 +1,7 @@
 // Background part of the highlight module. Owner: agent C.
 import { browser, type Browser } from 'wxt/browser';
 import { broadcast, isFromWebPage, sendToTab, type BackgroundMessages, type Handlers } from '@/src/core/messages';
-import { highlights, settings } from '@/src/core/storage';
+import { activeProjectId, highlights, settings } from '@/src/core/storage';
 import type { Highlight } from '@/src/core/types';
 import { normalizeUrl, noteIdOfHighlightUrl, nowIso } from '@/src/core/util';
 import { colorHex, orderedPalette } from '@/src/core/colors';
@@ -149,7 +149,7 @@ export function createHighlightHandlers(): Handlers<BackgroundMessages> {
         // The long note is edited only in the Library; a page's (possibly stale) copy must never overwrite it.
         if (page) saved.body = existing.body;
       } else {
-        const projectId = h.projectId ?? (await settings.get()).defaultProjectId;
+        const projectId = h.projectId ?? (await activeProjectId());
         saved = { ...h, projectId, createdAt: now, updatedAt: now };
         if (page) delete saved.body;
       }

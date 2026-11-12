@@ -165,6 +165,11 @@ describe('MLA 9', () => {
 });
 
 describe('formatBibliography', () => {
+  it('skips url-less sources (own/imported notes)', () => {
+    const list = [src({ url: '', title: '' }), src({ url: '', title: 'Note' }), src({ url: 'https://e.com/x', title: 'X' })];
+    for (const style of ['gost', 'apa', 'mla'] as const) expect(formatBibliography(list, style)).toHaveLength(1);
+  });
+
   it('dedupes by normalized URL (tracking params and hash ignored)', () => {
     const a = src({ url: 'https://example.com/a?utm_source=x#top', title: 'A' });
     const b = src({ url: 'https://example.com/a', title: 'A copy' });

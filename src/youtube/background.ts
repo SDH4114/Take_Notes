@@ -1,6 +1,6 @@
 // Background part of the youtube module.
 import { broadcast, resolveTabId, sendToTab, type BackgroundMessages, type Handlers } from '@/src/core/messages';
-import { clips, settings } from '@/src/core/storage';
+import { activeProjectId, clips } from '@/src/core/storage';
 import type { Clip } from '@/src/core/types';
 import { newId, nowIso } from '@/src/core/util';
 
@@ -11,7 +11,7 @@ export function setupYoutubeBackground(): Handlers<BackgroundMessages> {
       const tab = await resolveTabId(tabId);
       const r = await sendToTab(tab, 'content/youtubeTranscript', lang ? { languageCode: lang, kind } : {});
       if (!r) return null;
-      const pid = projectId !== undefined ? projectId : (await settings.get()).defaultProjectId;
+      const pid = projectId !== undefined ? projectId : await activeProjectId();
       const now = nowIso();
       const clip: Clip = {
         id: newId(), projectId: pid, kind: 'transcript', title: r.title, html: r.html, markdown: r.markdown,

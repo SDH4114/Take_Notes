@@ -17,6 +17,7 @@ const dict = {
     purple: 'Фиолетовый',
     notFound: 'Не удалось найти выделение на странице — возможно, текст изменился',
     unknownHighlight: 'Выделение не найдено',
+    saveFailed: 'TakeNotes: не удалось сохранить выделение',
   },
   en: {
     menuHighlight: 'Highlight selection',
@@ -34,6 +35,7 @@ const dict = {
     purple: 'Purple',
     notFound: 'Could not find the highlight on the page — the text may have changed',
     unknownHighlight: 'Highlight not found',
+    saveFailed: 'TakeNotes: could not save the highlight',
   },
 } satisfies Dict<string>;
 

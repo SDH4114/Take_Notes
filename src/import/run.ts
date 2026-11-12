@@ -23,6 +23,8 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Hard limits so a wrong pick (a whole disk) can't freeze the tab. */
 const MAX_FILES = 5000;
 const MAX_ZIP_BYTES = 500 * 1024 * 1024;
+/** Unpacked total of the wanted entries in one zip (checked from the headers before inflating: zip bombs). */
+const MAX_UNZIPPED_BYTES = 1024 * 1024 * 1024;
 
 export type ImportTarget = { projectId: string | null } | { newProject: string };
 
@@ -42,8 +44,16 @@ export async function collectFiles(picked: File[]): Promise<ImportFile[]> {
     const rel = cleanPath((f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name);
     if (isZip(f.name)) {
       if (f.size > MAX_ZIP_BYTES) throw new Error(it('tooBig', { name: f.name }));
+      let unpacked = 0;
+      let count = out.length;
       const entries = unzipSync(new Uint8Array(await f.arrayBuffer()), {
-        filter: (e) => !e.name.endsWith('/') && !isIgnoredPath(cleanPath(e.name)) && wanted(e.name),
+        filter: (e) => {
+          if (e.name.endsWith('/') || isIgnoredPath(cleanPath(e.name)) || !wanted(e.name)) return false;
+          unpacked += e.originalSize;
+          if (unpacked > MAX_UNZIPPED_BYTES) throw new Error(it('tooBig', { name: f.name }));
+          if (++count > MAX_FILES) throw new Error(it('tooMany', { n: MAX_FILES }));
+          return true;
+        },
       });
       // Several zips picked at once: keep each one's files under its own name so the roots don't mix.
       const prefix = picked.length > 1 ? `${f.name.replace(/\.zip$/i, '')}/` : '';

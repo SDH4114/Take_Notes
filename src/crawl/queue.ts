@@ -14,7 +14,11 @@ export interface CrawlerOptions {
   delayMs: number;
   maxPages: number;
   onProgress?: (p: CrawlProgress) => void;
-  /** When set, pages redirected to another origin are rejected (redirects could point into a local network). */
+  /**
+   * When set, pages redirected to another origin are rejected: their content (e.g. from a local network) never
+   * reaches the book. The redirected request itself is already sent by then — fetch can't inspect a redirect's
+   * target before following it (`redirect: 'manual'` hides Location), and `'error'` would break same-site redirects.
+   */
   rootUrl?: string;
 }
 

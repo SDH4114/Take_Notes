@@ -77,6 +77,20 @@ describe('highlightSelection', () => {
 });
 
 describe('refresh', () => {
+  it('keeps a highlight made while the page list was loading', async () => {
+    let resolveList!: (l: Highlight[]) => void;
+    send.mockImplementation(async (type: string, payload: unknown) =>
+      type === 'highlight/listForUrl' ? new Promise<Highlight[]>((r) => { resolveList = r; }) : payload);
+    const c = createHighlightController({ send: send as never });
+    const loading = c.refresh();
+    select('Hello');
+    const h = await c.highlightSelection('#facc15');
+    resolveList([stored()]); // loaded before the new highlight was saved
+    await loading;
+    expect(markText(h!.id)).toBe('Hello');
+    expect(markText('old')).toBe('world');
+  });
+
   it('lists highlights for the normalized url and renders them, replacing old marks', async () => {
     send.mockImplementation(async (type: string) => (type === 'highlight/listForUrl' ? [stored()] : undefined));
     const c = createHighlightController({ send: send as never, location: new URL('https://x.test/a#frag') });
@@ -115,7 +129,8 @@ describe('marks interaction', () => {
 
   it('recolor from the popover updates the mark and saves', async () => {
     send.mockImplementation(async (type: string) => (type === 'highlight/listForUrl' ? [stored()]
-      : type === 'highlight/palette' ? { colors: ['#facc15', '#a78bfa'], defaultColor: '#facc15' } : undefined));
+      : type === 'highlight/palette' ? { colors: ['#facc15', '#a78bfa'], defaultColor: '#facc15' }
+      : type === 'highlight/recolor' ? stored({ color: '#a78bfa' }) : undefined));
     const c = createHighlightController({ send: send as never });
     await c.refresh();
     c.start();
@@ -130,7 +145,8 @@ describe('marks interaction', () => {
   });
 
   it('note from the popover is saved on close', async () => {
-    send.mockImplementation(async (type: string) => (type === 'highlight/listForUrl' ? [stored()] : undefined));
+    send.mockImplementation(async (type: string) => (type === 'highlight/listForUrl' ? [stored()]
+      : type === 'highlight/setNote' ? stored({ note: 'remember' }) : undefined));
     const c = createHighlightController({ send: send as never });
     await c.refresh();
     c.start();

@@ -7,6 +7,15 @@ import { dom } from '@/src/core/dom';
 
 const renderMarkdown = (md: string) => dom('renderMarkdown', { md });
 
+// Clip read-modify-writes run one at a time: updateClip awaits rendering between its read and its put, and a
+// clip/patch or reorder landing in that gap would otherwise be overwritten with the older copy.
+let clipQueue: Promise<unknown> = Promise.resolve();
+function serialClip<T>(fn: () => Promise<T>): Promise<T> {
+  const run = clipQueue.then(fn, fn);
+  clipQueue = run.catch(() => undefined);
+  return run;
+}
+
 async function updateClip(input: Clip): Promise<Clip> {
   const existing = await clips.get(input.id);
   if (!existing) throw new Error(`Clip not found: ${input.id}`);
@@ -79,8 +88,8 @@ export function setupProjectsBackground(): Handlers<BackgroundMessages> {
     },
 
     'clip/list': ({ projectId }) => clips.listByProject(projectId),
-    'clip/update': updateClip,
-    'clip/patch': async ({ id, patch }) => {
+    'clip/update': (input) => serialClip(() => updateClip(input)),
+    'clip/patch': ({ id, patch }) => serialClip(async () => {
       const existing = await clips.get(id);
       if (!existing) throw new Error(`Clip not found: ${id}`);
       const next: Clip = { ...existing };
@@ -92,7 +101,7 @@ export function setupProjectsBackground(): Handlers<BackgroundMessages> {
       }
       if ('projectId' in patch) next.projectId = patch.projectId ?? null;
       return updateClip(next);
-    },
+    }),
     'clip/create': async ({ projectId, title, markdown = '', status }) => {
       const now = nowIso();
       const clip: Clip = {
@@ -104,10 +113,10 @@ export function setupProjectsBackground(): Handlers<BackgroundMessages> {
       broadcast('data/changed', { kind: 'clip' });
       return clip;
     },
-    'clip/delete': async ({ id }) => {
+    'clip/delete': ({ id }) => serialClip(async () => {
       await clips.delete(id);
       broadcast('data/changed', { kind: 'clip' });
-    },
-    'clip/reorder': ({ projectId, ids }) => reorderClips(projectId, ids),
+    }),
+    'clip/reorder': ({ projectId, ids }) => serialClip(() => reorderClips(projectId, ids)),
   };
 }

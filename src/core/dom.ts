@@ -7,14 +7,26 @@ import type { ExtractResult } from './types';
 export interface DomOps {
   renderMarkdown: [{ md: string }, string];
   extractHtml: [{ html: string; url: string }, ExtractResult];
-  /** Blob (as base64, messages are JSON in Chrome) → object URL owned by the offscreen document. */
-  blobUrl: [{ b64: string; type: string }, string];
+  /** Blob (as base64, messages are JSON in Chrome) → object URL owned by the offscreen document.
+   *  With `id`, the parts sent before via blobPart come first (big blobs go in pieces: see blobUrlViaDom). */
+  blobUrl: [{ b64: string; type: string; id?: string }, string];
+  blobPart: [{ id: string; b64: string }, void];
   revokeUrl: [{ url: string }, void];
 }
 export type DomOp = keyof DomOps;
 export const OFFSCREEN_TARGET = 'tn-offscreen';
 
 export const hasDom = (): boolean => typeof document !== 'undefined' && typeof DOMParser !== 'undefined';
+
+/** Pieces of a blob being sent to the offscreen document, by transfer id. */
+const blobParts = new Map<string, Uint8Array[]>();
+
+function fromBase64(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
 
 /** Implementations; also used by the offscreen document itself. Loaded lazily so a worker never evaluates them early. */
 export async function runDomOp<K extends DomOp>(op: K, payload: DomOps[K][0]): Promise<DomOps[K][1]> {
@@ -28,12 +40,18 @@ export async function runDomOp<K extends DomOp>(op: K, payload: DomOps[K][0]): P
       const [{ parseHtml }, { extractArticle }] = await Promise.all([import('@/src/crawl/queue'), import('@/src/extract/article')]);
       return extractArticle(parseHtml(html, url), url) as DomOps[K][1];
     }
+    case 'blobPart': {
+      const { id, b64 } = payload as DomOps['blobPart'][0];
+      const list = blobParts.get(id) ?? [];
+      list.push(fromBase64(b64));
+      blobParts.set(id, list);
+      return undefined as DomOps[K][1];
+    }
     case 'blobUrl': {
-      const { b64, type } = payload as DomOps['blobUrl'][0];
-      const bin = atob(b64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      return URL.createObjectURL(new Blob([bytes], { type })) as DomOps[K][1];
+      const { b64, type, id } = payload as DomOps['blobUrl'][0];
+      const parts = id ? blobParts.get(id) ?? [] : [];
+      if (id) blobParts.delete(id);
+      return URL.createObjectURL(new Blob([...parts, fromBase64(b64)] as BlobPart[], { type })) as DomOps[K][1];
     }
     case 'revokeUrl':
       URL.revokeObjectURL((payload as DomOps['revokeUrl'][0]).url);
@@ -71,6 +89,20 @@ export async function dom<K extends DomOp>(op: K, payload: DomOps[K][0]): Promis
   if (!res) throw new Error('Offscreen document did not answer');
   if (!res.ok) throw new Error(res.error);
   return res.data;
+}
+
+/** Raw bytes per message: well below Chrome's runtime message size limit even as base64 (+33%). */
+const BLOB_CHUNK_BYTES = 8 * 1024 * 1024;
+
+/** Object URL for a blob made by the DOM host; big blobs are sent in pieces, so no single message gets too large. */
+export async function blobUrlViaDom(blob: Blob, chunkBytes = BLOB_CHUNK_BYTES): Promise<string> {
+  if (blob.size <= chunkBytes) return dom('blobUrl', { b64: await blobToBase64(blob), type: blob.type });
+  const id = crypto.randomUUID();
+  let start = 0;
+  for (; start + chunkBytes < blob.size; start += chunkBytes) {
+    await dom('blobPart', { id, b64: await blobToBase64(blob.slice(start, start + chunkBytes)) });
+  }
+  return dom('blobUrl', { id, b64: await blobToBase64(blob.slice(start)), type: blob.type });
 }
 
 export async function blobToBase64(blob: Blob): Promise<string> {

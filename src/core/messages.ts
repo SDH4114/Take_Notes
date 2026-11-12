@@ -77,6 +77,8 @@ export interface ContentMessages {
 export interface BroadcastEvents {
   'crawl/progress': CrawlProgress;
   'data/changed': { kind: 'clip' | 'project' | 'highlight' | 'book' };
+  /** Navigate an open Library tab in place (a URL change would reload it and could drop unsaved typing). */
+  'library/open': { tabId: number; search: string };
 }
 
 type Payload<M, K extends keyof M> = M[K] extends [infer P, unknown] ? P : never;

@@ -72,7 +72,7 @@ describe('wikilinks in rendered markdown', () => {
     const html = renderMarkdown('[[Rust Basics|basics]] [[A#h]] [x](https://a.com) [[<img src=x onerror=1>]]');
     expect(html).toContain('<a href="#" class="wikilink" data-wikilink="Rust Basics">basics</a>');
     expect(html).toContain('data-wikilink="A">A#h</a>');
-    expect(html).toContain('target="_blank" rel="noopener noreferrer" href="https://a.com"');
+    expect(html).toContain('href="https://a.com" target="_blank" rel="noopener noreferrer"');
     expect(html).not.toContain('<img');
   });
 });

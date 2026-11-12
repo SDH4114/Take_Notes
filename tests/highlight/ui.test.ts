@@ -155,6 +155,21 @@ describe('createSelectionToolbar', () => {
     expect(shown()).toBe(false);
   });
 
+  it('showError stays visible after the selection collapses, hides after a timeout, swatches come back', async () => {
+    await showBubble();
+    (host()!.shadowRoot!.querySelector('button.sw') as HTMLElement).click();
+    window.getSelection()!.removeAllRanges();
+    toolbar.showError('could not save');
+    document.dispatchEvent(new Event('selectionchange'));
+    vi.advanceTimersByTime(100);
+    expect(shown()).toBe(true);
+    expect(host()!.shadowRoot!.querySelector('.msg')!.textContent).toBe('could not save');
+    vi.advanceTimersByTime(4000);
+    expect(shown()).toBe(false);
+    await showBubble();
+    expect(host()!.shadowRoot!.querySelector('button.sw')).not.toBeNull();
+  });
+
   it('a single-color palette shows no arrow', async () => {
     toolbar.destroy();
     toolbar = createSelectionToolbar(onPick, async () => ({ colors: ['#ff0000'], defaultColor: '#ff0000' }));

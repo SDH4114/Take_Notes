@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { browser } from 'wxt/browser';
-import { highlights, settings } from '@/src/core/storage';
+import { highlights, projects, settings } from '@/src/core/storage';
 import type { Highlight } from '@/src/core/types';
 import { createHighlightHandlers } from '@/src/highlight/background';
 
@@ -26,8 +26,14 @@ const call = <K extends keyof typeof h>(k: K, p: Parameters<NonNullable<(typeof 
   (h[k] as (p: unknown, s: unknown) => Promise<unknown>)(p, from);
 const pageSender = (url: string) => ({ url, tab: { id: 1, url } }) as never;
 
+const project = (id: string) =>
+  projects.put({ id, name: id, citationStyle: 'gost', createdAt: '2000-01-01T00:00:00.000Z', updatedAt: '2000-01-01T00:00:00.000Z' });
+
 beforeEach(async () => {
   for (const x of await highlights.listAll()) await highlights.delete(x.id);
+  for (const p of await projects.list()) await projects.delete(p.id);
+  await project('proj');
+  await project('other');
   await settings.set({ defaultProjectId: null });
 });
 
@@ -50,6 +56,13 @@ describe('highlight background handlers', () => {
     expect(second.projectId).toBe('proj');
     expect(second.note).toBe('n');
     expect(second.updatedAt >= first.updatedAt).toBe(true);
+  });
+
+  it('save falls back to Inbox when the active project no longer exists', async () => {
+    await settings.set({ defaultProjectId: 'deleted' });
+    const saved = (await call('highlight/save', hl())) as Highlight;
+    expect(saved.projectId).toBeNull();
+    expect((await highlights.listByProject(null)).map((x) => x.id)).toEqual(['h1']);
   });
 
   it('save keeps an explicit projectId on a new highlight', async () => {

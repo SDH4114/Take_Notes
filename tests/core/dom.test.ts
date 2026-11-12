@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blobToBase64, dom, runDomOp } from '@/src/core/dom';
+import { blobToBase64, blobUrlViaDom, dom, runDomOp } from '@/src/core/dom';
 
 describe('dom host', () => {
   it('runs in place when a DOM exists (Firefox event page, extension pages)', async () => {
@@ -17,6 +17,14 @@ describe('dom host', () => {
     expect(b64).toBe('AP8K');
     const url = await runDomOp('blobUrl', { b64, type: 'application/zip' });
     expect(url.startsWith('blob:')).toBe(true);
+    await runDomOp('revokeUrl', { url });
+  });
+
+  it('big blobs go in pieces and come out whole', async () => {
+    const bytes = new Uint8Array(10).map((_, i) => i * 25);
+    const url = await blobUrlViaDom(new Blob([bytes], { type: 'application/zip' }), 4); // parts 4 + 4 + 2
+    const out = new Uint8Array(await (await fetch(url)).arrayBuffer());
+    expect([...out]).toEqual([...bytes]);
     await runDomOp('revokeUrl', { url });
   });
 });

@@ -120,8 +120,11 @@ export function recolorHighlight(id: string, color: HighlightColor): void {
   for (const m of marksOf(id)) paint(m, color);
 }
 
-export function clearHighlights(): void {
-  document.querySelectorAll<HTMLElement>('mark.tn-hl').forEach(unwrap);
+export function clearHighlights(except: readonly string[] = []): void {
+  const keep = new Set(except);
+  document.querySelectorAll<HTMLElement>('mark.tn-hl').forEach((m) => {
+    if (!keep.has(m.dataset.tnId ?? '')) unwrap(m);
+  });
 }
 
 /** Delegated click listener: cb(id, clickedMark). Returns an uninstall function. */

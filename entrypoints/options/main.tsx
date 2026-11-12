@@ -6,7 +6,7 @@ import '@/src/ui/base.css';
 import { getTheme, initTheme, setTheme, THEMES, type Theme } from '@/src/ui/theme';
 import { ut } from '@/src/ui/strings';
 import './style.css';
-import { settings as settingsStore } from '@/src/core/storage';
+import { changedSettings, settings as settingsStore } from '@/src/core/storage';
 import { DEFAULT_SETTINGS, type CitationStyle, type Settings } from '@/src/core/types';
 import { colorHex, DEFAULT_PALETTE, normalizePalette } from '@/src/core/colors';
 import { clearAllData } from '@/src/projects/data';
@@ -57,9 +57,12 @@ function Page() {
   if (!s) return <div class="page muted">{t('loading')}</div>;
 
   const save = async (next: Settings) => {
+    const prev = s;
     setS(next);
     try {
-      await settingsStore.set(next);
+      // Write only the fields changed here: this page's copy of the rest (e.g. the active project picked in the
+      // popup meanwhile) may be stale and would overwrite newer values.
+      await settingsStore.set(changedSettings(prev, next));
       ui.toast(t('saved'));
     } catch (e) {
       ui.toast(t('error', { message: errText(e) }), true);

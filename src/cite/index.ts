@@ -322,6 +322,7 @@ function sortKey(s: SourceMeta): string {
 export function formatBibliography(sources: SourceMeta[], style: CitationStyle): string[] {
   const seen = new Set<string>();
   const unique = sources.filter((s) => {
+    if (!s.url) return false; // own/imported notes have no source to cite
     const k = normalizeUrl(s.url);
     if (seen.has(k)) return false;
     seen.add(k);

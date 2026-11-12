@@ -196,4 +196,31 @@ describe('importFiles', () => {
     await projects.delete('p');
     expect(await assets.get('a2')).toBeUndefined();
   });
+
+  it('deleting a url-less note deletes its highlights; deleting a project drops its board/folders and note highlights', async () => {
+    const hl = (id: string, url: string, projectId: string | null): Highlight => ({
+      id, url, color: '#facc15', text: 't', anchor: { exact: 't', prefix: '', suffix: '' } as Highlight['anchor'],
+      source: { url: '', title: '', authors: [], accessed: NOW }, projectId, createdAt: NOW, updatedAt: NOW,
+    });
+    const own = (id: string) => clip(id, 0, { source: { url: '', title: '', authors: [], accessed: NOW } });
+    await clips.put(own('n1'));
+    await clips.put(clip('w1', 1, {}));
+    await highlights.put(hl('h1', noteHighlightUrl('n1'), 'p'));
+    await highlights.put(hl('hw', 'https://e.com/w1', 'p'));
+    await clips.delete('n1');
+    await clips.delete('w1');
+    expect(await highlights.get('h1')).toBeUndefined();
+    expect(await highlights.get('hw')).toBeDefined(); // web highlights stay with their page
+
+    await projects.put({ id: 'p', name: 'P', citationStyle: 'gost', createdAt: NOW, updatedAt: NOW });
+    await clips.put(own('n2'));
+    await highlights.put(hl('h2', noteHighlightUrl('n2'), 'p'));
+    await boards.set('p', [{ id: 'todo', name: 'To do' }]);
+    await folders.set('p', ['A']);
+    await projects.delete('p');
+    expect(await highlights.get('h2')).toBeUndefined();
+    expect((await highlights.get('hw'))!.projectId).toBeNull(); // moved to Inbox
+    expect(await boards.get('p')).toBeNull();
+    expect(await folders.get('p')).toEqual([]);
+  });
 });

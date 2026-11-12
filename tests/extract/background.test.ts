@@ -34,6 +34,7 @@ beforeEach(async () => {
 describe('saveClip', () => {
   it('saves a page clip into the default project and broadcasts', async () => {
     sendToTab.mockResolvedValue(result);
+    await storage.projects.put({ id: 'p1', name: 'P', citationStyle: 'gost', createdAt: '', updatedAt: '' });
     await storage.settings.set({ defaultProjectId: 'p1' });
     const clip = await saveClip('page', {});
     expect(sendToTab).toHaveBeenCalledWith(7, 'content/extractPage');

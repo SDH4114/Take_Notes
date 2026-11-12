@@ -53,7 +53,9 @@ function ClipCard(p: {
       <div class="clip-actions">
         <IconButton size="sm" icon="eye" title={preview ? t('hidePreview') : t('preview')} active={preview} onClick={() => setPreview(!preview)} />
         <IconButton size="sm" icon="pencil" title={t('edit')} onClick={() => p.onEdit(clip)} />
-        <IconButton size="sm" icon="external" title={t('openSource')} onClick={() => void browser.tabs.create({ url: clip.source.url })} />
+        {clip.source.url && (
+          <IconButton size="sm" icon="external" title={t('openSource')} onClick={() => void browser.tabs.create({ url: clip.source.url })} />
+        )}
         <Menu align="right" items={[
           { label: t('up'), icon: 'arrowUp', onSelect: () => p.onMove(index, index - 1) },
           { label: t('down'), icon: 'arrowDown', onSelect: () => p.onMove(index, index + 1) },

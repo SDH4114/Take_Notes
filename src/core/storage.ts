@@ -1,9 +1,10 @@
 // IndexedDB persistence. Usable from background and extension pages (same origin).
 // Content scripts must go through background messages instead.
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type StoreNames } from 'idb';
 import type { Asset, BoardColumn, Book, Clip, Highlight, Project, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
 import { colorHex, normalizePalette } from './colors';
+import { noteHighlightUrl } from './util';
 
 interface TNSchema extends DBSchema {
   projects: { key: string; value: Project };
@@ -39,6 +40,11 @@ type WithProject<T> = T & { _project: string };
 const tag = <T extends { projectId: string | null }>(v: T): WithProject<T> => ({ ...v, _project: pk(v.projectId) });
 const untag = <T>(v: T): T => { const { _project, ...rest } = v as WithProject<T>; void _project; return rest as T; };
 
+type HighlightStore = IDBPObjectStore<TNSchema, ArrayLike<StoreNames<TNSchema>>, 'highlights', 'readwrite'>;
+async function deleteHighlightsByUrl(store: HighlightStore, url: string): Promise<void> {
+  for (let c = await store.index('byUrl').openCursor(url); c; c = await c.continue()) await c.delete();
+}
+
 // ---- projects
 export const projects = {
   async list(): Promise<Project[]> { return (await (await db()).getAll('projects')).sort((a, b) => a.name.localeCompare(b.name)); },
@@ -46,14 +52,20 @@ export const projects = {
   async put(p: Project) { await (await db()).put('projects', p); return p; },
   async delete(id: string) {
     const d = await db();
-    const tx = d.transaction(['projects', 'clips', 'highlights', 'assets'], 'readwrite');
+    const tx = d.transaction(['projects', 'clips', 'highlights', 'assets', 'kv'], 'readwrite');
     await tx.objectStore('projects').delete(id);
+    await tx.objectStore('kv').delete(`board:${id}`);
+    await tx.objectStore('kv').delete(`folders:${id}`);
     const idx = tx.objectStore('clips').index('byProject');
+    const noteUrls: string[] = [];
     for (let c = await idx.openCursor(id); c; c = await c.continue()) {
       // Files owned by the note (imported PDF originals); web images are shared by URL and only cached.
       for (const a of c.value.assetIds ?? []) await tx.objectStore('assets').delete(a);
+      noteUrls.push(noteHighlightUrl(c.value.id));
       await c.delete();
     }
+    // Highlights inside url-less notes have no page to live on: they go with their note.
+    for (const url of noteUrls) await deleteHighlightsByUrl(tx.objectStore('highlights'), url);
     // Highlights live on their pages: keep them, but move them to Inbox so they stay listable/exportable.
     const hIdx = tx.objectStore('highlights').index('byProject');
     for (let c = await hIdx.openCursor(id); c; c = await c.continue()) {
@@ -74,10 +86,12 @@ export const clips = {
   /** Also deletes the files the note owns (Clip.assetIds: imported PDF originals). */
   async delete(id: string) {
     const d = await db();
-    const tx = d.transaction(['clips', 'assets'], 'readwrite');
+    const tx = d.transaction(['clips', 'assets', 'highlights'], 'readwrite');
     const c = await tx.objectStore('clips').get(id);
     for (const a of c?.assetIds ?? []) await tx.objectStore('assets').delete(a);
     await tx.objectStore('clips').delete(id);
+    // Highlights of a url-less note exist only inside it (web-page highlights stay with their page).
+    if (c && !c.source.url) await deleteHighlightsByUrl(tx.objectStore('highlights'), noteHighlightUrl(id));
     await tx.done;
   },
   async nextOrder(projectId: string | null): Promise<number> {
@@ -155,3 +169,18 @@ export const settings = {
     return next;
   },
 };
+
+/** Fields of `next` that differ from `prev` (deep compare): a patch for `settings.set` that leaves the rest alone. */
+export function changedSettings(prev: Settings, next: Settings): Partial<Settings> {
+  const patch: Record<string, unknown> = {};
+  for (const k of Object.keys(next) as Array<keyof Settings>) {
+    if (JSON.stringify(prev[k]) !== JSON.stringify(next[k])) patch[k] = next[k];
+  }
+  return patch as Partial<Settings>;
+}
+
+/** The active project for hotkeys/menus/highlights; a stale id (project deleted) means Inbox. */
+export async function activeProjectId(): Promise<string | null> {
+  const id = (await settings.get()).defaultProjectId;
+  return id && (await projects.get(id)) ? id : null;
+}
