@@ -59,8 +59,9 @@ describe('library App', () => {
     await flush();
     expect(location.search).toContain('project=p1');
     expect(location.search).toContain('clip=c2');
-    // reading mode renders the markdown
-    expect(host.querySelector('.md h1')?.textContent).toBe('First clip');
+    // one live-preview editor: the heading is shown without its "# " (editor not focused)
+    expect(host.querySelector('.cm-lp-h1')?.textContent).toBe('First clip');
+    expect(host.querySelector('.pane [role=tab]')).toBeNull();
 
     // selecting another clip moves the selection and URL
     await act(() => (host.querySelectorAll('.clip-item')[1] as HTMLElement).click());

@@ -5,7 +5,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { search, searchKeymap } from '@codemirror/search';
 import { EditorSelection, EditorState, type Extension } from '@codemirror/state';
-import { Decoration, EditorView, keymap, MatchDecorator, placeholder as cmPlaceholder, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
 import { useEffect, useRef } from 'preact/hooks';
 import { translator } from '@/src/core/i18n';
@@ -13,7 +13,9 @@ import {
   cycleHeading, diffChange, toggleBlockquote, toggleBulletList, toggleCode, toggleLink, toggleOrderedList, toggleWrap,
   type Edit, type Sel,
 } from '@/src/library/format';
+import type { Highlight } from '@/src/core/types';
 import { IconButton } from './components';
+import { livePreview, setHighlights } from './livepreview';
 import type { IconName } from './icons';
 
 const t = translator({
@@ -63,18 +65,6 @@ function applyFormat(view: EditorView, run: Command): boolean {
   return true;
 }
 
-// ==highlight== gets a yellow background
-const markDeco = Decoration.mark({ class: 'cm-hl-mark' });
-const markMatcher = new MatchDecorator({ regexp: /==(?=\S)[^=\n]+?==/g, decoration: () => markDeco });
-const markPlugin = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-    constructor(view: EditorView) { this.decorations = markMatcher.createDeco(view); }
-    update(u: ViewUpdate) { this.decorations = markMatcher.updateDeco(u, this.decorations); }
-  },
-  { decorations: (v) => v.decorations },
-);
-
 const theme = EditorView.theme({
   '&': { height: '100%', backgroundColor: 'transparent', color: 'var(--fg)', fontSize: '15px' },
   '&.cm-focused': { outline: 'none' },
@@ -122,6 +112,8 @@ export interface EditorApi {
   focus(): void;
   /** Scroll to a 0..1 fraction of the scrollable height. */
   scrollToRatio(r: number): void;
+  /** Scroll a page highlight (colored in the note) into view and flash it. False: its text is not in the note. */
+  revealHighlight(id: string): boolean;
 }
 
 export interface MarkdownEditorProps {
@@ -132,6 +124,10 @@ export interface MarkdownEditorProps {
   onReady?: (api: EditorApi) => void;
   autofocus?: boolean;
   hideToolbar?: boolean;
+  /** Page highlights colored inside the note. */
+  highlights?: readonly Highlight[];
+  /** A [[wikilink]] was clicked. */
+  onOpenLink?: (title: string) => void;
 }
 
 /**
@@ -147,7 +143,8 @@ export function MarkdownEditor(p: MarkdownEditorProps) {
 
   useEffect(() => {
     const extensions: Extension[] = [
-      history(), closeBrackets(), search({ top: true }), markdown({ base: markdownLanguage }), syntaxHighlighting(highlightStyle), markPlugin,
+      history(), closeBrackets(), search({ top: true }), markdown({ base: markdownLanguage }), syntaxHighlighting(highlightStyle),
+      livePreview({ onWikilink: (title) => cb.current.onOpenLink?.(title) }),
       EditorView.lineWrapping, cmPlaceholder(t('placeholder')), theme, wrapOnType,
       EditorState.languageData.of(() => [{ closeBrackets: { brackets: ['(', '[', '{', '`'] } }]),
       keymap.of([
@@ -168,13 +165,18 @@ export function MarkdownEditor(p: MarkdownEditorProps) {
     ];
     const v = new EditorView({ parent: host.current!, state: EditorState.create({ doc: cb.current.value, extensions }) });
     view.current = v;
+    if (cb.current.highlights?.length) v.dispatch({ effects: setHighlights.of(cb.current.highlights) });
     cb.current.onReady?.({
       focus: () => v.focus(),
       scrollToRatio: (r) => { v.scrollDOM.scrollTop = r * (v.scrollDOM.scrollHeight - v.scrollDOM.clientHeight); },
+      revealHighlight: (id) => revealHighlight(v, id),
     });
     if (cb.current.autofocus) v.focus();
     return () => { v.destroy(); view.current = null; };
   }, []);
+
+  const hlKey = (p.highlights ?? []).map((h) => `${h.id}:${h.color}:${h.note ?? ''}:${h.text}`).join('|');
+  useEffect(() => { view.current?.dispatch({ effects: setHighlights.of(p.highlights ?? []) }); }, [hlKey]);
 
   // External value changes (e.g. refreshed data) are ignored while the user is working in the editor.
   useEffect(() => {
@@ -199,4 +201,28 @@ export function MarkdownEditor(p: MarkdownEditorProps) {
       <div class="md-editor-host" ref={host} />
     </div>
   );
+}
+
+/** Find the highlight's mark in the document, center it and flash it. */
+function revealHighlight(v: EditorView, id: string): boolean {
+  const find = () => [...v.contentDOM.querySelectorAll<HTMLElement>('[data-tn-id]')].filter((m) => m.dataset.tnId === id);
+  // The mark may be outside the rendered viewport: locate it through the decorations' source positions.
+  let pos = -1;
+  const deco = v.state.facet(EditorView.decorations);
+  for (const d of deco) {
+    const set = typeof d === 'function' ? d(v) : d;
+    set.between(0, v.state.doc.length, (from, _to, value) => {
+      if (value.spec.attributes?.['data-tn-id'] === id) { pos = from; return false; }
+      return undefined;
+    });
+    if (pos >= 0) break;
+  }
+  if (pos < 0) return false;
+  v.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
+  requestAnimationFrame(() => {
+    const marks = find();
+    marks.forEach((m) => m.classList.add('flash'));
+    setTimeout(() => marks.forEach((m) => m.classList.remove('flash')), 1600);
+  });
+  return true;
 }

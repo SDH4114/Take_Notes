@@ -16,7 +16,9 @@ export default defineConfig({
       default_locale: 'en',
       homepage_url: 'https://amikolabs.com',
       // Chrome: the service worker has no DOM → offscreen document (src/core/dom.ts). `sidePanel` is added by WXT.
-      permissions: ['storage', 'contextMenus', 'downloads', 'tabs', 'scripting', ...(firefox ? [] : ['offscreen'])],
+      // unlimitedStorage: notes, PDFs and images live in IndexedDB; without it the browser may evict that data under
+      // disk pressure (no install/update prompt in Firefox or Chrome, so auto-updates are not held back).
+      permissions: ['storage', 'unlimitedStorage', 'contextMenus', 'downloads', 'tabs', 'scripting', ...(firefox ? [] : ['offscreen'])],
       host_permissions: ['<all_urls>'],
       commands: {
         'tn-save-selection': { suggested_key: { default: 'Alt+Shift+S' }, description: 'Save selection to TakeNotes' },

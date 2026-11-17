@@ -5,16 +5,16 @@ type K =
   | 'renameProject' | 'deleteProject' | 'deleteProjectMsg' | 'deleteClip' | 'deleteClipMsg' | 'deleteHighlight'
   | 'deleteHighlightMsg' | 'deleteBook' | 'deleteBookMsg' | 'openSource' | 'moveTo' | 'moved'
   | 'emptyClips' | 'emptyClipsText' | 'emptySearch' | 'emptySearchText' | 'emptyHighlights' | 'emptyHighlightsText'
-  | 'pickClip' | 'pickClipText' | 'pickHighlight' | 'modeView' | 'modeEdit' | 'modeSplit' | 'myNote' | 'notePlaceholder'
+  | 'pickClip' | 'pickClipText' | 'pickHighlight' | 'myNote' | 'notePlaceholder'
   | 'titlePlaceholder' | 'saved' | 'saving' | 'saveFailed' | 'kindPage' | 'kindSelection' | 'kindTranscript'
   | 'kindChapter' | 'kindNote' | 'goToSpot' | 'chapters' | 'noBooks' | 'noBooksText' | 'pickBook' | 'pickChapter'
-  | 'loading' | 'editHint' | 'emptyNoteBody' | 'noteInHighlight' | 'color'
+  | 'loading' | 'noteInHighlight' | 'color'
   | 'bookChapters' | 'newNoteTitle' | 'clipDeleted' | 'openNote' | 'noNoteForHl' | 'hlNotInNote'
   | 'tags' | 'addTags' | 'graph' | 'board' | 'graphProject' | 'graphAll' | 'graphTags' | 'graphHint' | 'graphReset'
   | 'graphEmpty' | 'graphEmptyText' | 'linkNotFound' | 'colTodo' | 'colDoing' | 'colDone' | 'newColumn' | 'columnName'
   | 'renameColumn' | 'deleteColumn' | 'deleteColumnMsg' | 'dropHere'
   | 'newCard' | 'addCard' | 'cardTitle' | 'cardText' | 'deleteCard'
-  | 'hlShortNote' | 'hlShortPlaceholder' | 'hlLongNote' | 'hlLongHint' | 'hlLongEmpty'
+  | 'hlShortNote' | 'hlShortPlaceholder' | 'hlLongNote' | 'hlLongHint'
   | 'folders' | 'newFolder' | 'folderName' | 'noFolder' | 'renameFolder' | 'deleteFolder' | 'deleteFolderMsg'
   | 'moveToFolder' | 'folderExists' | 'movedToFolder' | 'emptyFolder' | 'exportBoard' | 'exportProjectBtn'
   | 'markDone' | 'markUndone' | 'doneColumnOn' | 'doneColumnSet' | 'collectDone';
@@ -51,7 +51,6 @@ export const libraryStrings: Dict<K> = {
     dropHere: 'Перетащите сюда заметку',
     hlShortNote: 'Короткая заметка', hlShortPlaceholder: 'Видна на сайте рядом с выделением',
     hlLongNote: 'Большая заметка', hlLongHint: 'Markdown, видна только в расширении и в экспорте',
-    hlLongEmpty: 'Пусто. Дважды щёлкните или выберите «Правка», чтобы написать.',
     folders: 'Папки', newFolder: 'Новая папка', folderName: 'Название папки', noFolder: 'Без папки',
     renameFolder: 'Переименовать папку', deleteFolder: 'Удалить папку «{name}»?',
     deleteFolderMsg: 'Заметки ({n}) не удалятся — они останутся в проекте без папки.',
@@ -62,14 +61,12 @@ export const libraryStrings: Dict<K> = {
     collectDone: 'Сюда собираются выполненные карточки',
     newCard: 'Добавить карточку', addCard: 'Добавить', cardTitle: 'Название карточки',
     cardText: 'Текст (необязательно). Ctrl/⌘+Enter — добавить', deleteCard: 'Удалить карточку',
-    modeView: 'Просмотр', modeEdit: 'Редактор', modeSplit: 'Рядом',
     myNote: 'Моя заметка', notePlaceholder: 'Мысли, вопросы, к чему это относится…', titlePlaceholder: 'Заголовок',
     saved: 'Сохранено', saving: 'Сохраняю…', saveFailed: 'Не удалось сохранить',
     kindPage: 'Страница', kindSelection: 'Фрагмент', kindTranscript: 'Транскрипт', kindChapter: 'Глава', kindNote: 'Заметка',
     goToSpot: 'Перейти к месту', chapters: 'Главы', noBooks: 'Книг пока нет',
     noBooksText: 'Соберите раздел документации в одну книгу на странице краулера.',
     pickBook: 'Выберите книгу', pickChapter: 'Выберите главу', loading: 'Загрузка…',
-    editHint: 'Дважды щёлкните, чтобы редактировать', emptyNoteBody: 'Пока пусто. Дважды щёлкните, чтобы писать.',
     noteInHighlight: 'Заметка к хайлайту', color: 'Цвет', bookChapters: 'глав: {n}', newNoteTitle: 'Новая заметка', clipDeleted: 'Заметка удалена',
   },
   en: {
@@ -103,7 +100,6 @@ export const libraryStrings: Dict<K> = {
     dropHere: 'Drop a note here',
     hlShortNote: 'Short note', hlShortPlaceholder: 'Shown on the site next to the highlight',
     hlLongNote: 'Long note', hlLongHint: 'Markdown, only in the extension and in exports',
-    hlLongEmpty: 'Empty. Double-click or choose Edit to write.',
     folders: 'Folders', newFolder: 'New folder', folderName: 'Folder name', noFolder: 'No folder',
     renameFolder: 'Rename folder', deleteFolder: 'Delete folder "{name}"?',
     deleteFolderMsg: '{n} note(s) are kept: they stay in the project without a folder.',
@@ -114,14 +110,12 @@ export const libraryStrings: Dict<K> = {
     collectDone: 'Collect completed cards here',
     newCard: 'Add a card', addCard: 'Add', cardTitle: 'Card title',
     cardText: 'Text (optional). Ctrl/⌘+Enter to add', deleteCard: 'Delete card',
-    modeView: 'Read', modeEdit: 'Edit', modeSplit: 'Split',
     myNote: 'My note', notePlaceholder: 'Thoughts, questions, what this relates to…', titlePlaceholder: 'Title',
     saved: 'Saved', saving: 'Saving…', saveFailed: 'Could not save',
     kindPage: 'Page', kindSelection: 'Excerpt', kindTranscript: 'Transcript', kindChapter: 'Chapter', kindNote: 'Note',
     goToSpot: 'Go to location', chapters: 'Chapters', noBooks: 'No books yet',
     noBooksText: 'Collect a documentation section into one book on the crawler page.',
     pickBook: 'Select a book', pickChapter: 'Select a chapter', loading: 'Loading…',
-    editHint: 'Double-click to edit', emptyNoteBody: 'Empty so far. Double-click to start writing.',
     noteInHighlight: 'Highlight note', color: 'Color', bookChapters: '{n} chapters', newNoteTitle: 'New note', clipDeleted: 'Note deleted',
   },
 };

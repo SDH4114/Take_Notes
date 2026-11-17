@@ -43,11 +43,11 @@ describe('HighlightPane', () => {
   beforeEach(() => { send.mockClear(); document.body.innerHTML = ''; vi.useFakeTimers(); });
   afterEach(() => vi.useRealTimers());
 
-  it('renders the existing long note as markdown in view mode', async () => {
+  it('shows the long note in the single live-preview editor, no mode switch', async () => {
     const host = await mount(stored);
-    expect(host.querySelector('.md h1')?.textContent).toBe('Long');
+    expect((host.querySelector('.fake-editor') as HTMLTextAreaElement).value).toBe('# Long\n\nbody');
     expect((host.querySelector('#hl-short') as HTMLTextAreaElement).value).toBe('old short');
-    expect(host.querySelector('.fake-editor')).toBeNull();
+    expect(host.querySelector('[role=tab]')).toBeNull();
   });
 
   it('autosaves the short note after 600 ms, merged onto the stored highlight', async () => {
@@ -85,7 +85,6 @@ describe('HighlightPane', () => {
 
   it('autosaves the long note typed in the editor, keeping the short note', async () => {
     const host = await mount(stored);
-    await act(() => (host.querySelectorAll('[role=tab]')[1] as HTMLElement).click()); // modes: view, edit, split
     await type(host.querySelector('.fake-editor') as HTMLTextAreaElement, '## Edited');
     await settle(700);
     expect(send).toHaveBeenCalledTimes(1);

@@ -1,39 +1,17 @@
-// Right pane of the library: the selected clip (title, meta, personal note, read / edit / split).
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+// Right pane of the library: the selected clip (title, meta, personal note, live-preview editor).
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { send } from '@/src/core/messages';
 import { assets as assetStore, clips as clipStore } from '@/src/core/storage';
 import type { Clip, Highlight, Project } from '@/src/core/types';
-import { markHighlightsInHtml } from '@/src/highlight/apply';
 import { normTag } from './graph';
 import { folderName } from './folders';
 import { domainOf, ExportMenu, errText, IconButton, Menu, useUi } from '@/src/ui/components';
 import { MarkdownEditor, type EditorApi } from '@/src/ui/editor';
 import { Icon } from '@/src/ui/icons';
-import { renderMarkdown } from '@/src/ui/markdown';
 import { ut } from '@/src/ui/strings';
 import { relativeDate } from './logic';
 import { lt } from './strings';
 import { it as importT } from '@/src/import/strings';
-
-type Mode = 'view' | 'edit' | 'split';
-const MODE_KEY = 'tn.library.mode';
-const MODES: Mode[] = ['view', 'edit', 'split'];
-
-function loadMode(): Mode {
-  try {
-    const v = localStorage.getItem(MODE_KEY) as Mode | null;
-    return v && MODES.includes(v) ? v : 'view';
-  } catch { return 'view'; }
-}
-
-function useDebounced<T>(value: T, ms: number): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(id);
-  }, [value, ms]);
-  return v;
-}
 
 /** Open the original file of an imported note (PDF kept as an Asset) in a new tab; the browser's viewer shows it. */
 async function openOriginal(c: Clip): Promise<void> {
@@ -55,30 +33,9 @@ interface Draft { title: string; markdown: string; note: string }
 const draftOf = (c: Clip): Draft => ({ title: c.title, markdown: c.markdown, note: c.note ?? '' });
 type Status = 'saved' | 'saving' | 'error';
 
-/** Rendered markdown; a double click switches to the editor, a click on [[link]] opens that note. */
-function Preview(p: {
-  html: string; empty: boolean; onEdit: () => void; scrollRef?: (el: HTMLDivElement | null) => void; onScroll?: () => void;
-  onLink?: (title: string) => void;
-}) {
-  const onClick = (e: MouseEvent) => {
-    const a = (e.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a.wikilink');
-    if (!a) return;
-    e.preventDefault();
-    p.onLink?.(a.dataset.wikilink ?? '');
-  };
-  return (
-    <div class="preview-scroll" ref={p.scrollRef} onScroll={p.onScroll} onDblClick={p.onEdit} onClick={onClick} title={lt('editHint')}>
-      {p.empty
-        ? <p class="muted reading">{lt('emptyNoteBody')}</p>
-        // renderMarkdown output is sanitized with DOMPurify
-        : <div class="md reading" dangerouslySetInnerHTML={{ __html: p.html }} />}
-    </div>
-  );
-}
-
 /**
- * `fresh`: just created, so open straight in the editor (without changing the remembered mode).
- * `highlights`: made on this clip's page, shown as marks in the preview. `focusHighlight`: scroll to that mark and flash it.
+ * `fresh`: just created, so the editor gets focus.
+ * `highlights`: made on this clip's page, colored in the note. `focusHighlight`: scroll to that mark and flash it.
  */
 export function ClipPane(p: {
   clip: Clip; projects: Project[]; fresh?: boolean; onDelete: () => void;
@@ -88,7 +45,6 @@ export function ClipPane(p: {
   folders?: string[]; onMoveToFolder?: (folder: string | null) => void;
 }) {
   const ui = useUi();
-  const [mode, setModeState] = useState<Mode>(() => (p.fresh ? 'edit' : p.focusHighlight ? 'view' : loadMode()));
   const [draft, setDraft] = useState<Draft>(() => draftOf(p.clip));
   const [status, setStatus] = useState<Status>('saved');
   const draftRef = useRef(draft);
@@ -98,11 +54,6 @@ export function ClipPane(p: {
   const savedVer = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const chain = useRef<Promise<void>>(Promise.resolve());
-
-  const setMode = (m: Mode) => {
-    setModeState(m);
-    try { localStorage.setItem(MODE_KEY, m); } catch { /* storage unavailable: the mode just isn't remembered */ }
-  };
 
   /** Save now (serialized so older saves can't overwrite newer ones). `patch` is merged on top, e.g. a new projectId. */
   const persist = useCallback((patch?: Partial<Clip>): Promise<void> => {
@@ -172,48 +123,17 @@ export function ClipPane(p: {
     el.style.height = `${Math.min(el.scrollHeight + 2, 140)}px`;
   }, [draft.note]);
 
-  // ---- split-view scroll sync by ratio
+  // Came here from a highlight: bring its mark into view once the editor is ready.
   const editorApi = useRef<EditorApi | null>(null);
-  const previewEl = useRef<HTMLDivElement | null>(null);
-  const lock = useRef<{ src: 'editor' | 'preview'; until: number } | null>(null);
-  const claim = (src: 'editor' | 'preview'): boolean => {
-    const l = lock.current;
-    if (l && l.src !== src && Date.now() < l.until) return false;
-    lock.current = { src, until: Date.now() + 120 };
-    return true;
-  };
-  const onEditorScroll = (ratio: number) => {
-    const el = previewEl.current;
-    if (mode !== 'split' || !el || !claim('editor')) return;
-    el.scrollTop = ratio * (el.scrollHeight - el.clientHeight);
-  };
-  const onPreviewScroll = () => {
-    const el = previewEl.current;
-    if (mode !== 'split' || !el || !claim('preview')) return;
-    const max = el.scrollHeight - el.clientHeight;
-    editorApi.current?.scrollToRatio(max > 0 ? el.scrollTop / max : 0);
-  };
-
-  const previewSource = useDebounced(draft.markdown, mode === 'split' ? 150 : 0);
-  const hls = p.highlights ?? [];
-  const hlKey = hls.map((h) => `${h.id}:${h.color}:${h.note ?? ''}`).join('|');
-  // renderMarkdown sanitizes; marks are added afterwards with validated colors only.
-  const html = useMemo(() => markHighlightsInHtml(renderMarkdown(previewSource), hls).html, [previewSource, hlKey]);
-
-  // Came here from a highlight: bring its mark into view once the preview is rendered.
   const revealed = useRef<string | undefined>(undefined);
-  useEffect(() => {
+  const reveal = () => {
     const id = p.focusHighlight;
-    const root = previewEl.current;
-    if (!id || !root || revealed.current === id) return;
+    const api = editorApi.current;
+    if (!id || !api || revealed.current === id) return;
     revealed.current = id; // once per jump, not on every re-render while editing
-    const marks = [...root.querySelectorAll<HTMLElement>('mark.tn-hl')].filter((m) => m.dataset.tnId === id);
-    if (!marks.length) { ui.toast(lt('hlNotInNote')); return; }
-    marks[0]!.scrollIntoView({ block: 'center' });
-    marks.forEach((m) => m.classList.add('flash'));
-    const t = setTimeout(() => marks.forEach((m) => m.classList.remove('flash')), 1600);
-    return () => clearTimeout(t);
-  }, [p.focusHighlight, html]);
+    if (!api.revealHighlight(id)) ui.toast(lt('hlNotInNote'));
+  };
+  useEffect(reveal, [p.focusHighlight]);
 
   // Tags: saved at once (not part of the debounced text draft).
   const [tags, setTags] = useState<string[]>(p.clip.tags);
@@ -251,11 +171,6 @@ export function ClipPane(p: {
         <div class="pane-top">
           <input class="title-input" value={draft.title} placeholder={lt('titlePlaceholder')} aria-label={lt('titlePlaceholder')}
             onInput={(e) => edit({ title: e.currentTarget.value })} />
-          <div class="segmented mode-switch" role="tablist">
-            {([['view', lt('modeView')], ['edit', lt('modeEdit')], ['split', lt('modeSplit')]] as [Mode, string][]).map(([m, label]) => (
-              <button key={m} type="button" role="tab" aria-selected={mode === m} class={mode === m ? 'on' : ''} onClick={() => setMode(m)}>{label}</button>
-            ))}
-          </div>
         </div>
         <div class="pane-meta">
           {c.source.url && (
@@ -332,17 +247,12 @@ export function ClipPane(p: {
           onBlur={() => { if (tagInput.trim()) addTags(tagInput); }} />
       </div>
 
-      <div class={`pane-body mode-${mode}`}>
-        {mode !== 'view' && (
-          <div class="pane-editor">
-            <MarkdownEditor value={draft.markdown} onChange={(v) => edit({ markdown: v })} onSave={() => void persist()}
-              onScroll={onEditorScroll} onReady={(api) => { editorApi.current = api; }} autofocus={mode === 'edit'} />
-          </div>
-        )}
-        {mode !== 'edit' && (
-          <Preview html={html} empty={!draft.markdown.trim()} onEdit={() => { if (mode === 'view') setMode('edit'); }}
-            scrollRef={(el) => { previewEl.current = el; }} onScroll={onPreviewScroll} onLink={p.onOpenLink} />
-        )}
+      <div class="pane-body">
+        <div class="pane-editor">
+          <MarkdownEditor value={draft.markdown} onChange={(v) => edit({ markdown: v })} onSave={() => void persist()}
+            highlights={p.highlights} onOpenLink={p.onOpenLink} autofocus={p.fresh}
+            onReady={(api) => { editorApi.current = api; reveal(); }} />
+        </div>
       </div>
     </section>
   );

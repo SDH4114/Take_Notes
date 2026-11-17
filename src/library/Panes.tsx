@@ -14,7 +14,6 @@ import { lt } from './strings';
 import { colorHex } from '@/src/core/colors';
 import { isPageHighlightUrl } from '@/src/core/util';
 
-type HlMode = 'view' | 'edit' | 'split';
 interface HlDraft { note: string; body: string }
 const hlDraftOf = (h: Highlight): HlDraft => ({ note: h.note ?? '', body: h.body ?? '' });
 
@@ -29,7 +28,6 @@ export function HighlightPane(p: {
   const { h } = p;
   const ui = useUi();
   const [draft, setDraft] = useState<HlDraft>(() => hlDraftOf(h));
-  const [mode, setMode] = useState<HlMode>(() => (h.body?.trim() ? 'view' : 'edit'));
   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const draftRef = useRef(draft);
   const pending = useRef(false);
@@ -82,8 +80,6 @@ export function HighlightPane(p: {
     return () => { window.removeEventListener('beforeunload', flush); flush(); };
   }, []);
 
-  const html = useMemo(() => renderMarkdown(draft.body), [draft.body]);
-
   return (
     <section class="pane">
       <header class="pane-head">
@@ -126,26 +122,11 @@ export function HighlightPane(p: {
       <div class="hl-long-head">
         <span class="label">{lt('hlLongNote')}</span>
         <span class="muted small grow">{lt('hlLongHint')}</span>
-        <div class="segmented mode-switch" role="tablist">
-          {([['view', lt('modeView')], ['edit', lt('modeEdit')], ['split', lt('modeSplit')]] as [HlMode, string][]).map(([m, label]) => (
-            <button key={m} type="button" role="tab" aria-selected={mode === m} class={mode === m ? 'on' : ''} onClick={() => setMode(m)}>{label}</button>
-          ))}
-        </div>
       </div>
-      <div class={`pane-body mode-${mode}`}>
-        {mode !== 'view' && (
-          <div class="pane-editor">
-            <MarkdownEditor value={draft.body} onChange={(v) => edit({ body: v })} onSave={() => void persist()} autofocus={mode === 'edit' && !!draft.body} />
-          </div>
-        )}
-        {mode !== 'edit' && (
-          <div class="preview-scroll" onDblClick={() => { if (mode === 'view') setMode('edit'); }} title={lt('editHint')}>
-            {draft.body.trim()
-              // renderMarkdown output is sanitized with DOMPurify
-              ? <div class="md reading" dangerouslySetInnerHTML={{ __html: html }} />
-              : <p class="muted reading">{lt('hlLongEmpty')}</p>}
-          </div>
-        )}
+      <div class="pane-body">
+        <div class="pane-editor">
+          <MarkdownEditor value={draft.body} onChange={(v) => edit({ body: v })} onSave={() => void persist()} />
+        </div>
       </div>
     </section>
   );
