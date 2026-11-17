@@ -89,6 +89,25 @@ export function codeSpans(md: string): Array<[number, number]> {
 }
 
 /**
+ * Where each highlight's text first appears in `md` (plain text, outside code; whitespace may differ, at most one line
+ * break between words). Used by the live-preview editor to color highlights in place. Not found → left out.
+ */
+export function findHighlightsInMarkdown(md: string, list: readonly Highlight[]): Array<{ h: Highlight; from: number; to: number }> {
+  const code = codeSpans(md);
+  const out: Array<{ h: Highlight; from: number; to: number }> = [];
+  for (const h of list) {
+    const words = h.text.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) continue;
+    const re = new RegExp(words.map(escapeRe).join('(?:[ \\t]+\\n?[ \\t]*|\\n[ \\t]*)'), 'g');
+    for (let m = re.exec(md); m; m = re.exec(md)) {
+      const from = m.index, to = from + m[0].length;
+      if (!code.some(([a, b]) => from < b && to > a)) { out.push({ h, from, to }); break; }
+    }
+  }
+  return out;
+}
+
+/**
  * Wrap the first plain-text occurrence of each highlight in ==…==. Whitespace may differ; matches crossing
  * a paragraph break, code or an existing mark are skipped. Returns the markdown and the ids not found.
  */

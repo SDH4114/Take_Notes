@@ -94,8 +94,6 @@ button { font-family: inherit; }
 .title-input { flex: 1; min-width: 0; padding: 4px 0; border: 0; outline: 0; background: transparent; color: var(--fg); font: 700 26px/1.3 var(--font); letter-spacing: -.015em; }
 .title-input::placeholder { color: var(--muted); }
 .pane-title { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.015em; line-height: 1.3; }
-.mode-switch { flex: none; margin-top: 4px; }
-.mode-switch button { flex: none; padding: 0 12px; height: 26px; }
 .pane-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-height: 34px; }
 .meta-link { display: inline-flex; align-items: center; gap: 4px; max-width: 240px; font-size: 12.5px; color: var(--fg-sub); }
 .meta-link:hover { color: var(--accent); }
@@ -110,11 +108,9 @@ button { font-family: inherit; }
 .note-field .input:focus { background: var(--bg); border-color: var(--accent); }
 
 .pane-body { display: flex; flex: 1; min-height: 0; border-top: 1px solid var(--border); }
-.pane-body.mode-split > * { flex: 1 1 0; min-width: 0; }
-.pane-body.mode-split > .preview-scroll { border-left: 1px solid var(--border); }
 .pane-editor { display: flex; flex: 1; min-width: 0; }
 .md-editor { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
-.md-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 5px 20px; border-bottom: 1px solid var(--border); background: var(--bg); }
+.md-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px; padding: 5px 20px; border-bottom: 1px solid var(--border); background: var(--bg); }
 .md-editor-host { flex: 1; min-height: 0; }
 .md-editor-host .cm-editor { height: 100%; }
 

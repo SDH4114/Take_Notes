@@ -22,7 +22,10 @@ const pk = (id: string | null) => id ?? INBOX_KEY;
 let dbp: Promise<IDBPDatabase<TNSchema>> | null = null;
 export function db(): Promise<IDBPDatabase<TNSchema>> {
   dbp ??= openDB<TNSchema>('take-notes', 1, {
-    upgrade(d) {
+    // Each schema version only adds what it needs: a future version 2 must not recreate (and fail on) the
+    // existing stores, and never drops a store with user data.
+    upgrade(d, oldVersion) {
+      if (oldVersion >= 1) return;
       d.createObjectStore('projects', { keyPath: 'id' });
       d.createObjectStore('clips', { keyPath: 'id' }).createIndex('byProject', '_project');
       d.createObjectStore('assets', { keyPath: 'id' }).createIndex('byUrl', 'url');
